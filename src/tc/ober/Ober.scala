@@ -1,53 +1,93 @@
+/*
+(C) 2009 Bill Burdick
+
+ar.ober.OberDragWidget
+
+This software is distributed under the terms of the
+Artistic License. Read the included file
+License.txt for more information.
+*/
 package tc.ober
 
 import scala.collection.mutable.{HashMap => MMap, HashSet => MSet};
 import scala.collection.Sequence;
 import javax.swing.border.LineBorder;
+import javax.swing.text.JTextComponent;
 import java.awt.Color;
 import java.awt.Container;
 import scala.io.Source;
 import java.io.IOException;
 
+trait AbstractOberWindow
+
+trait ScalaViewer[T <: ScalaViewer[_]] extends AbstractViewer[T] {
+	def gainedFocus: Unit
+	def lostFocus: Unit
+	def properties: MMap[Any, Any]
+	def errorFromProcess(line: String)
+	def outputFromProcess(line: String)
+	def delete: Unit
+	def isTrack: Boolean
+	def parent: T
+	def createNewViewer: Unit
+	def createNewTrack: Unit
+}
+
+
+class SimpleContext(val comp: JTextComponent, val viewer: ScalaViewer[_ <: ScalaViewer[_]], val word: String, val args: String, wStart: Int, wEnd: Int, lStart: Int, lEnd: Int)
+
 object Ober {
-	type AnyViewer = SimpleViewer[_ <: Container]
-	type AnyLeafViewer = LeafViewer[_ <: Container]
 	type Cmd = SimpleContext => Any
 	val wordPattern = """([-a-zA-Z0-9_<>|!.:$/]|\\\[)+|\[""" r
-	val namePattern = """^[^:]*: *([-a-zA-Z0-9_<>|!.:$/]|\\\[)+( |$)""" r
-	val defaultOberTagText = "Ober: New, Newcol, Quit, Help"
+	val namePattern = """^[^:]*: *(([-a-zA-Z0-9_<>|!.:$/]|\\\[)+)( |$)""" r
+	val defaultOberTagText = "Ober: New, Newcol, Quit"
 	val defaultTrackTagText = "Track: New, Delcol"
 	val defaultViewerTagText = "File: $PWD/New Del"
 	val defaultErrorViewerTagText = "Viewer: Err Del"
 	val namespaces = MMap[String, Namespace]()
-	var windows = List[OberWindow]()
-	var focus: SimpleViewer[_] = null
+	var windows = List[AbstractOberWindow]()
+	var focus: ScalaViewer[_] = null
 	val redBorder = new LineBorder(Color.red)
 	val grayBorder = LineBorder.createGrayLineBorder
 	val blackBorder = LineBorder.createBlackLineBorder
-
+	var idCounter = 0
 	val classNs = new ClassNamespace("Class")
 	val systemNs = new SystemNamespace("System")
 	val oberNs = new ClosureNamespace("Ober",
-		"Quit" -> {ctx => System.exit(0)},
-		"Import" -> {ctx => classNs.addImport(ctx)}
+		"Quit" -> {_ => System.exit(0)},
+		"Import" -> (classNs.addImport(_)),
+		"New" -> (_.viewer.createNewViewer),
+		"Del" -> (_.viewer.delete),
+		"Delcol" -> {ctx =>
+			val v = if (ctx.viewer.isTrack) ctx.viewer else ctx.viewer.parent
+			if (v.isTrack) v.delete},
+		"Newcol" -> (_.viewer.createNewTrack)
 	)
-	oberNs.parents = List(classNs, systemNs)
 	val trackNs = new ClosureNamespace("Track")
-	trackNs.parents = List(oberNs)
 	val viewerNs = new ClosureNamespace("Viewer")
-	viewerNs.parents = List(trackNs)
 	val fileNs = new ClosureNamespace("File")
-	fileNs.parents = List(viewerNs)
-	add(
-		oberNs,
-		trackNs,
-		viewerNs,
-		systemNs,
-		fileNs,
-		classNs
-	)
 
-	def gainFocus(v: SimpleViewer[_]) {
+	init
+	def init {
+		oberNs.parents = List(classNs, systemNs)
+		trackNs.parents = List(oberNs)
+		viewerNs.parents = List(trackNs)
+		fileNs.parents = List(viewerNs)
+		add(
+			oberNs,
+			trackNs,
+			viewerNs,
+			systemNs,
+			fileNs,
+			classNs
+		)
+	}
+
+	def nextId = {
+		idCounter += 1
+		"ID: " + idCounter
+	}
+	def gainFocus(v: ScalaViewer[_]) {
 		if (focus != v) {
 			if (focus != null) focus.lostFocus
 			focus = v
@@ -56,9 +96,6 @@ object Ober {
 	}
 	def add(spaces: Namespace*) {
 		for (ns <- spaces) namespaces(ns.name) = ns
-	}
-	def createWindow {
-		windows ::= new OberWindow
 	}
 	/**
 	 * execute the command that exists in the first available namespace in the list
@@ -84,7 +121,6 @@ object Ober {
 		}
 	}
 }
-trait ViewerContext
 trait Namespace {
 	var parents: List[Namespace] = Nil
 	def name: String
@@ -152,7 +188,7 @@ class SystemNamespace(var name: String) extends Namespace {
 					}
 				}.start
 				process
-			} catch {case e: IOException => ctx.viewer.errorFromProcess("Unknown command: " + ctx.word)}
+			} catch {case e: IOException => ctx.viewer.errorFromProcess("Unknown command: " + ctx.word + "\n")}
 		})
 	}
 }
