@@ -14,16 +14,16 @@ import java.awt.Container;
 import java.awt.Dimension;
 import java.awt.GridBagLayout;
 import java.awt.GridBagConstraints;
-import org.jdesktop.swingx.JXPanel;
-import net.miginfocom.swing.MigLayout;
+import javax.swing.JPanel;
 import Ober._
+import SimpleViewer._
 
-class TrackViewer extends SimpleViewer[JXPanel, OberViewer] {
+class TrackViewer extends SimpleViewer[JPanel, OberViewer] {
 	val resizer = new OberDragWidget(this)
-	val childrenPanel = new JXPanel
+	val childrenPanel = new JPanel
 	val layoutManager = new OberLayout(this, true)
 
-	viewerPanel = new JXPanel
+	viewerPanel = new JPanel
 	viewerPanel.setLayout(new GridBagLayout {
 		override def layoutContainer(c: Container) {
 			super.layoutContainer(c)
@@ -66,11 +66,83 @@ class TrackViewer extends SimpleViewer[JXPanel, OberViewer] {
 	}
 	def gainedFocus = viewerPanel setBorder blackBorder
 	def lostFocus = viewerPanel setBorder grayBorder
+	override def trackPosition(x: Int) {
+		val par = viewerPanel.getParent
+		var pBounds = par.getBounds()
+		val insets = par.getInsets
+		val layout = par.getLayout.asInstanceOf[OberLayout[_]]
+
+		layout.setPosition(this, new java.awt.Point(Math.min(pBounds.x + pBounds.width - insets.right, Math.max(pBounds.x + insets.left, x)), 0))
+		par.invalidate
+		par.validate
+		for (v <- parent.children) {v.viewerPanel.invalidate; v.viewerPanel.validate}
+	}
+	override def trackWidth(w: Int) {
+		if (parent.children.length > 1) {
+			val par = viewerPanel.getParent
+			var pBounds = par.getBounds()
+			val insets = par.getInsets
+			val layout = par.getLayout.asInstanceOf[OberLayout[_]]
+			val bounds = viewerPanel.getBounds()
+			var delta = Math.min(w, pBounds.width - insets.left - insets.right) - bounds.width
+
+			if (delta != 0) {
+				if (layout.components.get(0) == viewerPanel) {
+					val Some(next: AnyViewer) = parent.children.find(_.viewerPanel == layout.components.get(1))
+					val nBounds = next.viewerPanel.getBounds()
+
+					layout.setPosition(next, new java.awt.Point(nBounds.x + delta, 0))
+				} else {
+					layout.setPosition(this, new java.awt.Point(bounds.x - delta, 0))
+				}
+				par.invalidate
+				par.validate
+				for (v <- parent.children) {v.viewerPanel.invalidate; v.viewerPanel.validate}
+			}
+		}
+	}
 }
 abstract class LeafViewer[T <: Container] extends SimpleViewer[T, TrackViewer] {
 	override def resizeDirection = (0, 1)
 	override def parent_=(p: TrackViewer) {
 		super.parent_=(p)
 		p.addViewer(this)
+	}
+	override def trackPosition(x: Int) = parent.trackPosition(x)
+	override def trackWidth(w: Int) = parent.trackWidth(w)
+	override def viewerPosition(y: Int) {
+		val par = viewerPanel.getParent
+		var pBounds = par.getBounds()
+		val insets = par.getInsets
+		val layout = par.getLayout.asInstanceOf[OberLayout[_]]
+
+		layout.setPosition(this, new java.awt.Point(0, Math.min(pBounds.y + pBounds.height - insets.bottom, Math.max(pBounds.y + insets.top, y))))
+		par.invalidate
+		par.validate
+		for (v <- parent.children) {v.viewerPanel.invalidate; v.viewerPanel.validate}
+	}
+	override def viewerHeight(h: Int) {
+		if (parent.children.length > 1) {
+			val par = viewerPanel.getParent
+			var pBounds = par.getBounds()
+			val insets = par.getInsets
+			val layout = par.getLayout.asInstanceOf[OberLayout[_]]
+			val bounds = viewerPanel.getBounds()
+			var delta = Math.min(h, pBounds.height - insets.top - insets.bottom) - bounds.height
+
+			if (delta != 0) {
+				if (layout.components.get(0) == viewerPanel) {
+					val Some(next: AnyViewer) = parent.children.find(_.viewerPanel == layout.components.get(1))
+					val nBounds = next.viewerPanel.getBounds()
+
+					layout.setPosition(next, new java.awt.Point(0, nBounds.y + delta))
+				} else {
+					layout.setPosition(this, new java.awt.Point(0, bounds.y - delta))
+				}
+				par.invalidate
+				par.validate
+				for (v <- parent.children) {v.viewerPanel.invalidate; v.viewerPanel.validate}
+			}
+		}
 	}
 }

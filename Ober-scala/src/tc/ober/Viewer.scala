@@ -9,6 +9,7 @@ License.txt for more information.
 */
 package tc.ober;
 
+import java.io.InputStream;
 import java.awt.Color;
 import java.awt.event.ActionEvent;
 import java.awt.Container;
@@ -17,13 +18,13 @@ import java.awt.event.MouseEvent;
 import java.awt.event.FocusAdapter;
 import java.awt.event.FocusEvent;
 import javax.swing.JTextField;
+import javax.swing.JComponent;
 import javax.swing.AbstractAction;
-import org.jdesktop.swingx.JXPanel;
-import org.jdesktop.swingx.JXFrame;
 import javax.swing.text.Document;
 import javax.swing.text.DefaultStyledDocument;
 import javax.swing.text.JTextComponent;
 import scala.collection.mutable.{HashMap => MMap};
+import scala.io.Source;
 import Ober._;
 
 object SimpleViewer {
@@ -39,48 +40,26 @@ abstract class SimpleViewer[PANEL_TYPE <: Container, PARENT <: AnyViewer] extend
 	var dirty = false
 
 	def parent = myParent
-	def parent_=(p: PARENT) {
-//		val par = p.asInstanceOf[PARENT]
-//
-//		myParent = par
-		myParent = p
-	}
+	def parent_=(p: PARENT) = myParent = p
 	def createNewTrack = newTrack
 	def createNewViewer = newViewer
-	def nameMatcher = namePattern.findAllIn(tag.getText)
-	def name = {
-		val nm = nameMatcher
-
-		if (nm.hasNext) {
-			nm.next
-			nm.group(1)
-		} else {
-			""
-		}
-	}
+	def defaultComponent: JTextComponent = tag
+	def clear {}
+	def name = namespacePattern.findFirstMatchIn(tag.getText).map(_.group(1)).getOrElse("")
 	def name_=(newName: String) {
-		val nm = nameMatcher.matchData
+		val txt = tag.getText
 
-		if (nm.hasNext) {
-			val txt = tag.getText
-			val firstMatch = nm.next
-			tag.setText(txt.take(firstMatch.start(1))+txt.drop(firstMatch.end(1)))
-		} else {
-			val txt = tag.getText
-			val colonPos = txt.indexOf(':')
-
-			if (colonPos != -1) {
-				tag.setText(txt.take(colonPos) + " " + newName + " " + txt.drop(colonPos))
-			}
+		for (m <- namespacePattern.findFirstMatchIn(txt)) {
+			tag.setText(txt.take(m.start(1)) + newName + txt.drop(m.end(1)))
 		}
 	}
-	def find(childName: String): AnyViewer = find((x: AnyViewer) => x.name == childName)
-	def find(pred: AnyViewer => Boolean): AnyViewer = if (pred(this)) this else subFind(pred, children)
-	def subFind(pred: AnyViewer => Boolean, rem: List[AnyViewer]): AnyViewer = {
+	def find(childName: String): ScalaViewer[_] = find(_.name == childName)
+	def find(pred: (ScalaViewer[_]) => Boolean): ScalaViewer[_] = if (pred(this)) this else subFind(pred, children)
+	def subFind(pred: (ScalaViewer[_]) => Boolean, rem: List[ScalaViewer[_]]): ScalaViewer[_] = {
 		if (rem == Nil) {
 			null
 		} else {
-			val ret = rem.head.find(pred)
+			val ret: ScalaViewer[_] = rem.head.find(pred)
 
 			if (ret != null) {
 				ret
@@ -91,8 +70,9 @@ abstract class SimpleViewer[PANEL_TYPE <: Container, PARENT <: AnyViewer] extend
 	}
 	def resizeDirection = (0, 0)
 	def isTrack = false
-	def wordAtPosition(doc: Document, pos: Int) = {
-		var word: Option[(String, String, Int, Int, Int, Int)] = None
+	def wordAtPosition(comp: JTextComponent, pos: Int) = {
+		var doc = comp.getDocument
+		var word: Option[SimpleContext] = None
 		val (start, end) = doc match {
 		case d: DefaultStyledDocument =>
 			val para = d getParagraphElement pos
@@ -108,32 +88,31 @@ abstract class SimpleViewer[PANEL_TYPE <: Container, PARENT <: AnyViewer] extend
 
 			matcher find {_ =>
 				if (matcher.start <= offsetPos && offsetPos <= matcher.end) {
-					word = Some((matcher matched, text.drop(matcher.end), matcher.start + start, matcher.end + start, start, end))
+					word = Some(new SimpleContext(comp, this, matcher matched, matcher.start + start, matcher.end + start))
 					true
 				} else false
 			}
 		}
 		word
 	}
-	def namespaces = {
-		val txt = tag.getText
-		val colonPos = txt indexOf ':'
-
-		if (colonPos == -1) {
-			None
-		} else {
-			Some((txt take colonPos) mkString)
-		}
-	}
+	def namespaces = namespacePattern.findFirstMatchIn(tag.getText).map(_.group(2))
 	def bindEvents(comp: JTextComponent) {
 		comp addMouseListener new MouseAdapter {
 			override def mouseClicked(e: MouseEvent) {
-				if (e.getButton == 3) {
+				if (e.getButton == 1 && e.isControlDown) {
 					val comp: JTextComponent = e.getSource.asInstanceOf[JTextComponent]
 
-					for ((word, args, start, end, lineStart, lineEnd) <- wordAtPosition(comp.getDocument, comp.viewToModel(e.getPoint))) {
-						if (comp.modelToView(start).union(comp.modelToView(end)).contains(e.getPoint)) {
-							Ober.handlerFor(namespaces.getOrElse("").split("  *"), word, new SimpleContext(comp, SimpleViewer.this, word, args, start, end, lineStart, lineEnd))
+					for (ctx <- wordAtPosition(comp, comp.viewToModel(e.getPoint))) {
+						if (comp.modelToView(ctx.wStart).union(comp.modelToView(ctx.wEnd)).contains(e.getPoint)) {
+							surf(ctx)
+						}
+					}
+				} else if (e.getButton == 3) {
+					val comp: JTextComponent = e.getSource.asInstanceOf[JTextComponent]
+
+					for (ctx <- wordAtPosition(comp, comp.viewToModel(e.getPoint))) {
+						if (comp.modelToView(ctx.wStart).union(comp.modelToView(ctx.wEnd)).contains(e.getPoint)) {
+							run(ctx)
 						}
 					}
 				}
@@ -141,9 +120,16 @@ abstract class SimpleViewer[PANEL_TYPE <: Container, PARENT <: AnyViewer] extend
 		}
 		comp addFocusListener new FocusAdapter {
 			override def focusGained(e: FocusEvent) {
-				Ober gainFocus SimpleViewer.this
+				Utils gainFocus SimpleViewer.this
 			}
 		}
+	}
+	def run(ctx: SimpleContext) = Ober.run(namespaces.getOrElse("").split(" +"), ctx)
+	def surf = surfTo(name)
+	def surf(ctx: SimpleContext) = Ober.surf(namespaces.getOrElse("").split(" +"), ctx)
+	def surfTo(newName: String) {
+		name = newName
+		get(null)
 	}
 	def layout {
 		viewerPanel.invalidate
@@ -152,26 +138,24 @@ abstract class SimpleViewer[PANEL_TYPE <: Container, PARENT <: AnyViewer] extend
 	def topViewer: OberViewer = parent.topViewer
 	def outputFromProcess(str: String) = errorFromProcess(str)
 	def errorFromProcess(str: String) {
-		var viewer = topViewer.find{child: AnyViewer => child.name.startsWith("Err") && child.isInstanceOf[DocumentViewer]}.asInstanceOf[DocumentViewer]
+		var viewer = topViewer.find{child: ScalaViewer[_] => child.name.startsWith("Err") && child.isInstanceOf[DocumentViewer]}.asInstanceOf[DocumentViewer]
 
 		if (viewer == null) {
 			viewer = topViewer.newDocumentViewer
 			viewer.tag.setText(defaultErrorViewerTagText)
-			println("name: '"+viewer.name+"'")
-			println("child: "+topViewer.find("Err"))
-			println(viewer.name.startsWith("Err") && viewer.isInstanceOf[DocumentViewer])
-			println(topViewer.find(child => child.name.startsWith("Err") && child.isInstanceOf[DocumentViewer]).asInstanceOf[DocumentViewer])
 		}
-		viewer.append(str)
+		viewer.append(str + "\n")
 	}
+	def append(str: String) {}
 	def widestTrack: Option[TrackViewer] = topViewer.widestTrack
 	def newTrack = {
 		val tr = new TrackViewer
 		topViewer.addTrack(tr)
+		tr
 	}
 	def trackForNewViewer = widestTrack getOrElse newTrack
 	//Create a document viewer by default
-	def newViewer: AnyViewer = newDocumentViewer
+	def newViewer: ScalaViewer[_] = newDocumentViewer
 	def newDocumentViewer: DocumentViewer = {
 		val viewer = new DocumentViewer()
 		viewer.name = name
@@ -185,11 +169,93 @@ abstract class SimpleViewer[PANEL_TYPE <: Container, PARENT <: AnyViewer] extend
 		}
 	}
 	def delete {
-		viewerPanel.getParent.remove(viewerPanel)
+		val p = viewerPanel.getParent
+		p.remove(viewerPanel)
 		parent.removeChild(this)
 		layout
+		p.invalidate
+		p.layout
+		p.asInstanceOf[JComponent].repaint()
 	}
 	def removeChild(child: AnyViewer) {
 		children = children - child
+	}
+	def trackPosition(x: Int) {}
+	def trackWidth(w: Int) {}
+	def viewerPosition(y: Int) {}
+	def viewerHeight(h: Int) {}
+	def load {
+		Ober.contextForName(name) match {
+		case f: java.io.File => eval(Source.fromFile(f).getLines.mkString(""))
+		case u: java.net.URL => eval(Source.fromURL(u).getLines.mkString(""))
+		case _ => errorFromProcess("Couldn't resolve name: "+name)
+		}
+	}
+	def eval(txt: String) {
+		var pos = 0
+		val ns = namespaces.getOrElse("").split(" +")
+
+		while (pos < txt.length) {
+			val m = ArgMatcher(txt.drop(pos), true, this)
+
+			if (m.hasNext) {
+				val cmd = m.next
+
+				Ober.run(ns, new SimpleContext(defaultComponent, this, cmd, m.start, m.end, m))
+				pos = if (m.end == -1) txt.length else pos + m.end
+			} else {
+				pos += 1
+			}
+		}
+	}
+	def read = {
+		tryUri(name) match {
+		case None => readFromFile
+		case Some(uri) if (uri.getScheme == null || uri.getScheme == "file") => readFromFile
+		case Some(uri) => Some(Source.fromInputStream(uri.toURL.openStream).mkString(""))
+		case _ => None
+		}
+	}
+	def focus = defaultComponent.grabFocus
+	def readFromFile = {
+		val file = filename
+
+		if (file != null && file.exists) {
+			Some(if (file.isDirectory) file.list.mkString("\n") else scala.io.Source.fromFile(file).mkString(""))
+		} else None
+	}
+	def getHtml(src: Source = null, context: Any = null) {
+		if (src != null) getHtmlFromString(src.mkString(""), context)
+		else for (str <- read) getHtmlFromString(str, Ober.contextForName(name))
+	}
+	def getHtmlFromString(str: String, context: Any) = getFromString(str)
+	def get(src: Source = null) {
+		if (src != null) getFromString(src.mkString(""))
+		else read match {
+		case Some(str) => getFromString(str)
+		case None => errorFromProcess("No file: '"+name+"'")
+		}
+	}
+	def getFromString(str: String) {
+		clear
+		append(str)
+	}
+	def put {}
+	def filename = {
+		val n = name
+		if (n == "") null
+		else {
+			val m = ArgMatcher(name, false, this)
+			val buf = new StringBuilder
+			var end = 0
+
+			for (word <- m) {
+				if (m.start > end) {
+					buf.appendAll((1 to end - m.start).map(_ => ' '))
+				}
+				buf.append(word)
+			}
+			new java.io.File(buf.toString)
+		}
 	}
 }

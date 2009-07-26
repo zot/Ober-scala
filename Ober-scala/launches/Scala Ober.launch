@@ -7,5 +7,5 @@
 <listEntry value="4"/>
 </listAttribute>
 <stringAttribute key="org.eclipse.jdt.launching.MAIN_TYPE" value="tc.ober.Main"/>
-<stringAttribute key="org.eclipse.jdt.launching.PROJECT_ATTR" value="Ober-scala"/>
+<stringAttribute key="org.eclipse.jdt.launching.PROJECT_ATTR" value="Dataswarm-scala"/>
 </launchConfiguration>

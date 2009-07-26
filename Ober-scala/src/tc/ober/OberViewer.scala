@@ -10,11 +10,11 @@ License.txt for more information.
 package tc.ober
 
 import java.awt.BorderLayout;
-import org.jdesktop.swingx.JXPanel;
-import org.jdesktop.swingx.JXFrame;
+import javax.swing.JPanel;
+import javax.swing.JFrame;
 
-class OberViewer(vp: JXFrame) extends SimpleViewer[JXFrame, OberViewer] {
-	val childrenPanel = new JXPanel
+class OberViewer(vp: JFrame) extends SimpleViewer[JFrame, OberViewer] {
+	val childrenPanel = new JPanel
 	val layoutManager = new OberLayout(this, false)
 
 	init

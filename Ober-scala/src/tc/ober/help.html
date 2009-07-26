@@ -1,0 +1,192 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html><head><title>Ober Help</title>
+
+</head>
+<body>
+<h1><span style="font-weight: bold;">Ober</span>,
+an environment for Scala based on Oberon</h1>
+<br>
+<h2>Basic Operation</h2>
+<br>
+<span style="font-weight: bold;">Mouse button 1</span>
+functions as normal<br>
+<br>
+<span style="font-weight: bold;">Ctrl-Mouse button 1</span>
+"surfs" in a context-sensitive way (based on the namespaces of the
+viewer). &nbsp;Default is to open a&nbsp;file or URL<br>
+<br>
+<span style="font-weight: bold;">Mouse button 3</span>
+executes text as a command in a context-sensitive way (based on the
+namespaces of the viewer).<br>
+<br>
+<h2>Overview</h2>
+Ober windows are composed of <span style="font-weight: bold; font-style: italic; text-decoration: underline;">tags</span>,
+<span style="font-weight: bold; font-style: italic; text-decoration: underline;">viewers</span>,
+and <span style="font-weight: bold; font-style: italic; text-decoration: underline;">tracks</span>.<br>
+<br>
+Tags
+are&nbsp;single-line text fields, viewers are large areas of text,
+and
+tracks are columns of viewers. &nbsp;Tracks and viewers also have
+draggers next to their tags, which you can use to resize the tracks and
+viewers.<br>
+<br>
+Tags have this format: name [namespace ...] command ...<br>
+<br>
+When
+you execute a command or surf, Ober uses the namespaces in brackets to
+resolve the action. &nbsp;Viewers use the tag directly above them
+for
+command resolution. &nbsp;Each namespace can inherit from a list of
+namespaces<br>
+<br>
+Some commands take arguments. &nbsp;These can be <span style="font-weight: bold; font-style: italic; text-decoration: underline;">words</span>,
+<span style="font-weight: bold; font-style: italic; text-decoration: underline;">quoted
+text</span>, or <span style="font-weight: bold; font-style: italic; text-decoration: underline;">Scala
+expressions enclosed in curly braces</span>.<br>
+<br>
+Scala
+expressions are evaluated in their own blocks. &nbsp;To create
+definitions that persist past the current argument, use the <span style="font-weight: bold; font-style: italic; text-decoration: underline;">Exec</span>
+command.<br>
+<br>
+<h2>Namespaces</h2>
+<h3>Ober (parents: Class, System)</h3>
+<table style="text-align: left;" border="0" cellpadding="2" cellspacing="2">
+<tbody>
+<tr>
+<td width="256">Quit</td>
+<td>Quit Ober</td>
+</tr>
+<tr>
+<td width="256">New
+</td>
+<td>Create new viewer. &nbsp;It will appear in the
+widest track, cutting the tallest view in half</td>
+</tr>
+<tr>
+<td width="256">Newcol</td>
+<td>Create a new track. &nbsp;It will cut the widest
+track in half</td>
+</tr>
+<tr>
+<td width="256">Load</td>
+<td>Load commands, line-by-line from a file indicated by
+viewer name as if you clicked each one in the current context</td>
+</tr>
+<tr>
+<td width="256">Rename&nbsp;newname</td>
+<td>Renames current viewer to newname</td>
+</tr>
+<tr>
+<td width="256">Echo (args to end of line)</td>
+<td>echo
+arguments in the Err viewer</td>
+</tr>
+<tr>
+<td width="256">Help</td>
+<td>Show this document</td>
+</tr>
+<tr>
+<td width="256">Run viewer command</td>
+<td>Execute command in the context of the named viewer</td>
+</tr>
+<tr>
+<td width="256">Append text</td>
+<td>Add text to a viewer's main view</td>
+</tr>
+<tr>
+<td>Exec (args to end of line)</td>
+<td>Concatenate arguments and execute as Scala code</td>
+</tr>
+</tbody>
+</table>
+<br>
+<h3>Track (parents: Ober)</h3>
+<table style="text-align: left;" border="0" cellpadding="2" cellspacing="2">
+<tbody>
+<tr>
+<td width="256">Delcol</td>
+<td>Remove the current column</td>
+</tr>
+<tr>
+<td width="256">Width width</td>
+<td>Set the width of a track</td>
+</tr>
+<tr>
+<td width="256">TrackPosition pos</td>
+<td>Set the position of a track</td>
+</tr>
+</tbody>
+</table>
+<br>
+<h3>Viewer (parents: Track)</h3>
+<table style="text-align: left;" border="0" cellpadding="2" cellspacing="2">
+<tbody>
+<tr>
+<td width="256">Del</td>
+<td>Delete the current viewer</td>
+</tr>
+<tr>
+<td width="256">Height height</td>
+<td>Set the height of a viewer</td>
+</tr>
+<tr>
+<td width="256">ViewerPosition pos</td>
+<td>Set the position of a viewer</td>
+</tr>
+</tbody>
+</table>
+<br>
+<h3>File (parents: Viewer)</h3>
+<table style="text-align: left;" border="0" cellpadding="2" cellspacing="2">
+<tbody>
+<tr>
+<td width="256">Get</td>
+<td>Load the file indicated by the viewer name as text</td>
+</tr>
+<tr>
+<td width="256">GetHTML</td>
+<td>Load the file indicated by the viewer name as HTML</td>
+</tr>
+<tr>
+<td width="256">Surf</td>
+<td>Load the file indicated by the viewer name as either
+text or html, depending on content type</td>
+</tr>
+<tr>
+<td width="256">Put</td>
+<td>Store viewer contents to the file indicated by the
+viewer name</td>
+</tr>
+</tbody>
+</table>
+<br>
+<h3>Class</h3>
+<table style="text-align: left;" border="0" cellpadding="2" cellspacing="2">
+<tbody>
+<tr>
+<td width="256">Import package</td>
+<td>Add package to the import path</td>
+</tr>
+<tr>
+<td width="256">classname (args&nbsp;to end of
+line)</td>
+<td>Run the main method on a class with the arguments</td>
+</tr>
+</tbody>
+</table>
+<br>
+<h3>System</h3>
+<table style="text-align: left;" border="0" cellpadding="2" cellspacing="2">
+<tbody>
+<tr>
+<td width="256">systemcmd (args to end of
+line)<br>
+</td>
+<td>Run the system command</td>
+</tr>
+</tbody>
+</table>
+<br>
+</body></html>

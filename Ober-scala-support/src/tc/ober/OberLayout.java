@@ -20,8 +20,8 @@ import java.util.ArrayList;
 
 public class OberLayout<T extends AbstractViewer<?>> implements LayoutManager2 {
 	protected boolean vertical;
-	protected ArrayList<Component> components = new ArrayList<Component>();
-	protected float positions[] = new float[8];
+	public ArrayList<Component> components = new ArrayList<Component>();
+	protected float positions[] = new float[8]; // positions of components, ranging from 0 to 1 
 	protected T viewer;
  
  	public OberLayout(T v, boolean vert) {
@@ -117,12 +117,12 @@ public class OberLayout<T extends AbstractViewer<?>> implements LayoutManager2 {
 	public void layoutContainer(Container parent) {
 		Rectangle bounds = parent.getBounds();
 		float prev = 1;
+		Insets insets = parent.getInsets();
+		int height = bounds.height - insets.top - insets.bottom;
+		int width = bounds.width - insets.left - insets.right;
 
 		for (int i = components.size(); i-- > 0; ) {
 			Component comp = (Component) components.get(i);
-			Insets insets = parent.getInsets();
-			int height = bounds.height - insets.top - insets.bottom;
-			int width = bounds.width - insets.left - insets.right;
 
 			if (vertical) {
 				comp.setBounds(insets.left, Math.round(height * positions[i]) + insets.top, width, Math.round(height * (prev - positions[i])));
@@ -131,6 +131,22 @@ public class OberLayout<T extends AbstractViewer<?>> implements LayoutManager2 {
 			}
 			prev = positions[i];
 		}
+	}
+	public int getPosition(Component comp) {
+		if (!components.isEmpty()) {
+			Container parent = components.get(0).getParent();
+			Rectangle bounds = parent.getBounds();
+			Insets insets = parent.getInsets();
+			int height = bounds.height - insets.top - insets.bottom;
+			int width = bounds.width - insets.left - insets.right;
+
+			for (int i = 0; i < components.size(); i++) {
+				if (components.get(i) == comp) {
+					return Math.round(positions[i] * (vertical ? height : width));
+				}
+			}
+		}
+		return 0;
 	}
 	public Container topComponent(Component comp) {
 		Container cont = comp.getParent();
@@ -194,18 +210,18 @@ public class OberLayout<T extends AbstractViewer<?>> implements LayoutManager2 {
 				maxIndex = i;
 			}
 		}
-		float old = positions[maxIndex];
-		positions[maxIndex] = (positions[maxIndex] + (maxIndex == components.size() - 1 ? 1 : positions[maxIndex + 1])) / 2;
-		container.add(child.viewerPanel(), new Float(old));
+//		float old = positions[maxIndex];
+//		positions[maxIndex] = (positions[maxIndex] + (maxIndex == components.size() - 1 ? 1 : positions[maxIndex + 1])) / 2;
+		container.add(child.viewerPanel(), (positions[maxIndex] + (maxIndex == components.size() - 1 ? 1 : positions[maxIndex + 1])) / 2);
 		child.layout();
 	}
 	public void insert(AbstractViewer<T> child, Container container, Point point) {
 		container.add(child.viewerPanel(), new Float(vertical ? point.y / (float)container.getHeight() : point.x / (float)container.getWidth()));
 	}
-	public void setPosition(AbstractViewer<T> viewer, Point point) {
+	public void setPosition(AbstractViewer<?> viewer, Point point) {
 		setPosition(viewer, vertical ? point.y / (float)viewer.viewerPanel().getParent().getHeight() : point.x / (float)viewer.viewerPanel().getParent().getWidth());
 	}
-	public void setPosition(AbstractViewer<T> viewer, float pos)  {
+	public void setPosition(AbstractViewer<?> viewer, float pos)  {
 		removeLayoutComponent(viewer.viewerPanel());
 		addLayoutComponent(viewer.viewerPanel(), new Float(pos));
 	}

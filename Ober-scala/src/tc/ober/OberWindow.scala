@@ -11,24 +11,33 @@ package tc.ober
 
 import java.awt.event.WindowEvent;
 import java.awt.event.WindowAdapter;
-import org.jdesktop.swingx.JXFrame;
+import javax.swing.JFrame;
+import scala.io.Source
+import javax.swing.SwingUtilities;
+import scala.swing.Swing._;
 
 class OberWindow {
-	val frame = new JXFrame()
+	val frame = new JFrame()
 	val ob = new OberViewer(frame)
 	val tr = new TrackViewer
 	val doc = new DocumentViewer
+
 	tr.parent = ob
 	doc.parent = tr
-//	new OberViewer(frame).addTrack(new TrackViewer).addViewer(new DocumentViewer)
-	frame.setSize(300, 300)
-	frame.addWindowListener(ScalaWindowAdapter(System.exit(0)))
+	frame.setSize(800, 600)
+	frame.addWindowListener(new ScalaWindowAdapter(doc, System.exit(0)))
 	frame setVisible true
+	val rc = new java.io.File(Ober.toFile(System.getProperty("user.home")), ".oberrc")
+	if (rc.exists) {
+		doc.name = "{HOME}"+java.io.File.separator+".oberrc"
+		doc.load
+	} else {
+		Utils.help(doc)
+	}
 }
-object ScalaWindowAdapter {
-	def apply(closing: => Any) = new ScalaWindowAdapter(closing)
-}
-class ScalaWindowAdapter(closing: => Any = (null)) extends WindowAdapter {
+class ScalaWindowAdapter(doc: DocumentViewer, closing: => Any = (null)) extends WindowAdapter {
+	var init = false;
+
 	override def windowClosing(e: WindowEvent) {
 		if (closing != null) {
 			closing
