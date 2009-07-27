@@ -181,6 +181,12 @@ object Ober {
 		case None => null
 		}
 	}
+	def urlForContext(context: Any) = context match {
+		case u: URL => u
+		case u: URI => u.toURL
+		case f: File => f.toURL
+		case _ => null
+	}
 	def resolve(str: String) = ArgMatcher(str).toSequence.mkString("")
 
 	Utils.init

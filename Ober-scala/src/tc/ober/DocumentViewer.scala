@@ -138,7 +138,7 @@ class DocumentViewer extends LeafViewer[JPanel] {
 			name = nn
 		}
 		editor.setEditorKit(kit)
-		editor.read(new StringReader(str), doc)
+		editor.read(new StringReader(str), Ober.urlForContext(context))
 		document = editor.getDocument.asInstanceOf[DefaultStyledDocument]
 	}
 	override def surfTo(newName: String) {
