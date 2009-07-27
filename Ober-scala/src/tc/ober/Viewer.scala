@@ -96,6 +96,13 @@ abstract class SimpleViewer[PANEL_TYPE <: Container, PARENT <: AnyViewer] extend
 		word
 	}
 	def namespaces = namespacePattern.findFirstMatchIn(tag.getText).map(_.group(2))
+	def namespaces_=(ns: String) {
+		val txt = tag.getText
+
+		namespacePattern.findFirstMatchIn(txt) match {
+		case Some(m) =>	tag.setText(txt.take(m.start(2))+ns+txt.drop(m.end(2)))
+		}
+	}
 	def bindEvents(comp: JTextComponent) {
 		comp addMouseListener new MouseAdapter {
 			override def mouseClicked(e: MouseEvent) {

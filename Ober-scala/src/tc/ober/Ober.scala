@@ -26,7 +26,7 @@ import scala.tools.nsc.{Interpreter, Settings, InterpreterResults => IR}
 
 trait AbstractOberWindow
 
-trait ScalaViewer[T <: ScalaViewer[_]] extends AbstractViewer[T] {
+trait ScalaViewer[T] extends AbstractViewer[T] {
 	def focus
 	def gainedFocus
 	def lostFocus
@@ -59,6 +59,8 @@ trait ScalaViewer[T <: ScalaViewer[_]] extends AbstractViewer[T] {
 	def trackWidth(w: Int)
 	def viewerPosition(y: Int)
 	def viewerHeight(h: Int)
+	def namespaces: Option[String]
+	def namespaces_=(str: String)
 }
 
 class SimpleContext(val comp: JTextComponent, var viewer: ScalaViewer[_ <: ScalaViewer[_]], var word: String, val wStart: Int, val wEnd: Int, var myMatcher: ArgMatcher = null) {
@@ -81,7 +83,7 @@ object Ober {
 	var idCounter = 0
 
 	val wordPlusRest = """^([-a-zA-Z0-9_<>|!.:$/]+) *([^ \n](?:[^\n"]|"(?:[^"]|\n|\\")*")*)?(?:\n(?:.|\n)*)?$""".r
-	val wordPattern = """([-a-zA-Z0-9_<>|!.:$/]|\\\[)+|\[""" r
+	val wordPattern = """[-a-zA-Z0-9_<>|!.:$/]+""" r
 	val namespacePattern = """([-a-zA-Z0-9_<>|!.:$/{}]*) *\[(([-a-zA-Z0-9_<>|!.:$/{}]+)?( +[-a-zA-Z0-9_<>|!.:$/{}]+)*)]""" r
 	val namePattern = """^[^:]*: *([-a-zA-Z0-9_<>|!.:$/{}]+)([^-a-zA-Z0-9_<>|!.:$/{}]|$)""" r
 	val defaultOberTagText = "[Ober] New Newcol Quit"
@@ -107,7 +109,8 @@ object Ober {
 		"Rename" -> (Utils.rename(_)),
 		"Run" -> (Utils.run(_)),
 		"Append" -> (Utils.appendText(_)),
-		"Exec" -> (Utils.execCmd(_))
+		"Exec" -> (Utils.execCmd(_)),
+		"Namespaces" -> (Utils.setNamespaces(_))
 	)
 	val trackNs = new ClosureNamespace("Track",
 		"Delcol" -> {ctx =>
@@ -202,6 +205,7 @@ object Utils {
 			Ober.fileNs,
 			Ober.classNs
 		)
+		Ober.oberNs.handleSurf = true
 	}
 	def error(str: String) {
 		println("Error: "+str)
@@ -233,6 +237,7 @@ object Utils {
 			ctx.viewer.errorFromProcess("Not given a viewer name")
 		}
 	}
+	def setNamespaces(ctx: SimpleContext) = ctx.viewer.namespaces = ctx.matcher.mkString(" ").trim
 	def trackPosition(ctx: SimpleContext) {
 		if (ctx.matcher.hasNext) {
 			try {
@@ -282,14 +287,17 @@ object Utils {
 	def load(ctx: SimpleContext) = ctx.viewer.load
 	def help(ctxViewer: ScalaViewer[_]) {
 		val helpDoc = Ober.condensePath(classOf[OberWindow].getResource("help.html").toExternalForm)
-		var viewer = ctxViewer.topViewer.find(helpDoc)
 
-		if (viewer != null) viewer.focus
-		else {
-			val doc = ctxViewer.createNewViewer
-			doc.name = Ober.condensePath(classOf[OberWindow].getResource("help.html").toExternalForm)
-			doc.getHtml()
+		findOrCreateViewer(helpDoc, ctxViewer).getHtml()
+	}
+	def findOrCreateViewer(name: String, ctxViewer: ScalaViewer[_]) = {
+		var viewer = ctxViewer.topViewer.find(name)
+
+		if (viewer == null) {
+			viewer = ctxViewer.createNewViewer
+			viewer.name = name
 		}
+		viewer
 	}
 	def run(ctx: SimpleContext) {
 		if (ctx.matcher.hasNext) {
@@ -372,19 +380,21 @@ trait Namespace {
 }
 class ClosureNamespace(var name: String, entries: (String, Ober.Cmd)*) extends Namespace {
 	val closures = MMap[String, Ober.Cmd](entries: _*)
-	def handlerFor(ctx: SimpleContext) = {
-		closures.get(ctx.word)
-	}
-	override def surf(ctx: SimpleContext) = {
-		val name = Ober.condensePath(ctx.word)
-		var viewer = ctx.find(name)
+	var handleSurf = false
 
-		if (viewer == null) {
-			viewer = ctx.viewer.createNewViewer
-			viewer.surfTo(Ober.condensePath(name))
-		}
-		viewer.focus
-		true
+	def handlerFor(ctx: SimpleContext) = closures.get(ctx.word)
+	override def surf(ctx: SimpleContext) = {
+		if (handleSurf) {
+			val name = Ober.condensePath(ctx.word)
+			var viewer = ctx.find(name)
+
+			if (viewer == null) {
+				viewer = ctx.viewer.createNewViewer
+				viewer.surfTo(Ober.condensePath(name))
+			}
+			viewer.focus
+			true
+		} else false
 	}
 }
 class ClassNamespace(var name: String) extends Namespace {
