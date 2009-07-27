@@ -86,7 +86,7 @@ object Ober {
 	val wordPattern = """[-a-zA-Z0-9_<>|!.:$/]+""" r
 	val namespacePattern = """([-a-zA-Z0-9_<>|!.:$/{}]*) *\[(([-a-zA-Z0-9_<>|!.:$/{}]+)?( +[-a-zA-Z0-9_<>|!.:$/{}]+)*)]""" r
 	val namePattern = """^[^:]*: *([-a-zA-Z0-9_<>|!.:$/{}]+)([^-a-zA-Z0-9_<>|!.:$/{}]|$)""" r
-	val defaultOberTagText = "[Ober] New Newcol Quit"
+	val defaultOberTagText = "[Ober] New Newcol Help Quit"
 	val defaultTrackTagText = "[Track] New Delcol"
 	val defaultViewerTagText = "./New [File] Get GetHTML Put Del"
 	def defaultErrorViewerTagText = "Err [Viewer] Del"
