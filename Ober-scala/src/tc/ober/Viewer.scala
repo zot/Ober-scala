@@ -9,6 +9,7 @@ License.txt for more information.
 */
 package tc.ober;
 
+import java.io.File;
 import java.io.InputStream;
 import java.awt.Color;
 import java.awt.event.ActionEvent;
@@ -37,8 +38,10 @@ abstract class SimpleViewer[PANEL_TYPE <: Container, PARENT <: AnyViewer] extend
 	var viewerPanel: PANEL_TYPE = null.asInstanceOf[PANEL_TYPE]
 	var children = List[AnyViewer]()
 	var myParent: PARENT = null.asInstanceOf[PARENT]
-	var dirty = false
+	var myDirty = false
 
+	def dirty = myDirty
+	def dirty_=(dirt: Boolean): Unit = {myDirty = dirt}
 	def parent = myParent
 	def parent_=(p: PARENT) = myParent = p
 	def createNewTrack = newTrack
@@ -53,6 +56,7 @@ abstract class SimpleViewer[PANEL_TYPE <: Container, PARENT <: AnyViewer] extend
 			tag.setText(txt.take(m.start(1)) + newName + txt.drop(m.end(1)))
 		}
 	}
+	def memento: ViewerMemento = null
 	def find(childName: String): ScalaViewer[_] = find(_.name == childName)
 	def find(pred: (ScalaViewer[_]) => Boolean): ScalaViewer[_] = if (pred(this)) this else subFind(pred, children)
 	def subFind(pred: (ScalaViewer[_]) => Boolean, rem: List[ScalaViewer[_]]): ScalaViewer[_] = {
@@ -106,12 +110,13 @@ abstract class SimpleViewer[PANEL_TYPE <: Container, PARENT <: AnyViewer] extend
 	def bindEvents(comp: JTextComponent) {
 		comp addMouseListener new MouseAdapter {
 			override def mouseClicked(e: MouseEvent) {
-				if (e.getButton == 1 && e.isControlDown) {
+				if ((e.getButton == 3 && (e.isControlDown || dirty)) || e.getButton == 2) {
 					val comp: JTextComponent = e.getSource.asInstanceOf[JTextComponent]
 
 					for (ctx <- wordAtPosition(comp, comp.viewToModel(e.getPoint))) {
 						if (comp.modelToView(ctx.wStart).union(comp.modelToView(ctx.wEnd)).contains(e.getPoint)) {
-							surf(ctx)
+							ctx.surfReplace = false
+							run(ctx)
 						}
 					}
 				} else if (e.getButton == 3) {
@@ -127,13 +132,12 @@ abstract class SimpleViewer[PANEL_TYPE <: Container, PARENT <: AnyViewer] extend
 		}
 		comp addFocusListener new FocusAdapter {
 			override def focusGained(e: FocusEvent) {
-				Utils gainFocus SimpleViewer.this
+				gainFocus(SimpleViewer.this)
 			}
 		}
 	}
-	def run(ctx: SimpleContext) = Ober.run(namespaces.getOrElse("").split(" +"), ctx)
+	def run(ctx: SimpleContext) = Ober.run(ctx)
 	def surf = surfTo(name)
-	def surf(ctx: SimpleContext) = Ober.surf(namespaces.getOrElse("").split(" +"), ctx)
 	def surfTo(newName: String) {
 		name = newName
 		get(null)
@@ -191,8 +195,8 @@ abstract class SimpleViewer[PANEL_TYPE <: Container, PARENT <: AnyViewer] extend
 	def trackWidth(w: Int) {}
 	def viewerPosition(y: Int) {}
 	def viewerHeight(h: Int) {}
-	def load {
-		Ober.contextForName(name) match {
+	def load(str: String = null) {
+		Ober.contextForName(if (str == null) name else str) match {
 		case f: java.io.File => eval(Source.fromFile(f).getLines.mkString(""))
 		case u: java.net.URL => eval(Source.fromURL(u).getLines.mkString(""))
 		case _ => errorFromProcess("Couldn't resolve name: "+name)
@@ -200,7 +204,6 @@ abstract class SimpleViewer[PANEL_TYPE <: Container, PARENT <: AnyViewer] extend
 	}
 	def eval(txt: String) {
 		var pos = 0
-		val ns = namespaces.getOrElse("").split(" +")
 
 		while (pos < txt.length) {
 			val m = ArgMatcher(txt.drop(pos), true, this)
@@ -208,7 +211,7 @@ abstract class SimpleViewer[PANEL_TYPE <: Container, PARENT <: AnyViewer] extend
 			if (m.hasNext) {
 				val cmd = m.next
 
-				Ober.run(ns, new SimpleContext(defaultComponent, this, cmd, m.start, m.end, m))
+				Ober.run(new SimpleContext(defaultComponent, this, cmd, m.start + pos, m.end + pos, m, txt))
 				pos = if (m.end == -1) txt.length else pos + m.end
 			} else {
 				pos += 1
@@ -224,11 +227,16 @@ abstract class SimpleViewer[PANEL_TYPE <: Container, PARENT <: AnyViewer] extend
 		}
 	}
 	def focus = defaultComponent.grabFocus
+	def nameForFileSort(f: File): String = {
+		val n = f.getName.toLowerCase
+
+		if (n.startsWith(".")) n.drop(1) else n
+	}
 	def readFromFile = {
 		val file = filename
 
 		if (file != null && file.exists) {
-			Some(if (file.isDirectory) file.list.mkString("\n") else scala.io.Source.fromFile(file).mkString(""))
+			Some(if (file.isDirectory) file.listFiles.toList.sort(nameForFileSort(_) <= nameForFileSort(_)).map {f => if (f.isDirectory) f.getName + File.separator else f.getName}.mkString("\n") else scala.io.Source.fromFile(file).mkString(""))
 		} else None
 	}
 	def getHtml(src: Source = null, context: Any = null) {
@@ -246,6 +254,9 @@ abstract class SimpleViewer[PANEL_TYPE <: Container, PARENT <: AnyViewer] extend
 	def getFromString(str: String) {
 		clear
 		append(str)
+		//TODO the following code is generating a compiler error
+		// dirty = false
+		dirty_=(false)
 	}
 	def put {}
 	def filename = {

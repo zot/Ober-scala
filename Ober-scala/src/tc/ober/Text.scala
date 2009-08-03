@@ -50,7 +50,7 @@ class ArgMatcher(txt: String, var stopAtEol: Boolean = true, var viewer: ScalaVi
 					val start = matcher.end
 					val (success, end) = parseCurlies
 				
-					if (success) Some((Utils.eval(txt.slice(start, end), viewer).getOrElse("Error: " + Ober.interpError).toString, oldStart, matcher.end, false)) else None
+					if (success) Some((Ober.eval(txt.slice(start, end), viewer).getOrElse("Error: " + Ober.interpError).toString, oldStart, matcher.end, false)) else None
 				case "}" =>
 					error("UNBALANCED CURLIES")
 					None

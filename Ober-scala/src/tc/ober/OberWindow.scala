@@ -27,12 +27,14 @@ class OberWindow {
 	frame.setSize(800, 600)
 	frame.addWindowListener(new ScalaWindowAdapter(doc, System.exit(0)))
 	frame setVisible true
-	val rc = new java.io.File(Ober.toFile(System.getProperty("user.home")), ".oberrc")
-	if (rc.exists) {
-		doc.name = "{HOME}"+java.io.File.separator+".oberrc"
-		doc.load
-	} else {
-		Utils.help(doc)
+	onEDT {
+		val rc = new java.io.File(Ober.toFile(System.getProperty("user.home")), ".oberrc")
+		if (rc.exists) {
+			doc.name = "{HOME}"+java.io.File.separator+".oberrc"
+			doc.load(rc.getAbsolutePath)
+		} else {
+			Utils.help(doc)
+		}
 	}
 }
 class ScalaWindowAdapter(doc: DocumentViewer, closing: => Any = (null)) extends WindowAdapter {

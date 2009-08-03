@@ -19,10 +19,14 @@ import javax.swing.border.LineBorder;
 import javax.swing.text.JTextComponent;
 import java.io.IOException;
 import scala.io.Source;
-import scala.collection.mutable.{HashMap => MMap, HashSet => MSet, StringBuilder};
+import scala.collection.mutable.{HashMap => MMap, HashSet => MSet, StringBuilder, ArrayBuffer};
 import scala.collection.Sequence;
 import scala.util.matching.Regex;
 import scala.tools.nsc.{Interpreter, Settings, InterpreterResults => IR}
+import scala.actors.Future
+import scala.actors.Futures
+import scala.actors.Actor._
+import scala.swing.Swing._
 
 trait AbstractOberWindow
 
@@ -44,7 +48,7 @@ trait ScalaViewer[T] extends AbstractViewer[T] {
 	def append(str: String)
 	def name: String
 	def name_=(newName: String)
-	def load
+	def load(str: String = null)
 	def get(src: Source = null)
 	def getHtml(src: Source = null, context: Any = null)
 	def put
@@ -52,7 +56,7 @@ trait ScalaViewer[T] extends AbstractViewer[T] {
 	def filename: java.io.File
 	def run(ctx: SimpleContext)
 	def surf
-	def surf(ctx: SimpleContext)
+//	def surf(ctx: SimpleContext)
 	def surfTo(newName: String)
 	def topViewer: OberViewer
 	def trackPosition(x: Int)
@@ -61,9 +65,20 @@ trait ScalaViewer[T] extends AbstractViewer[T] {
 	def viewerHeight(h: Int)
 	def namespaces: Option[String]
 	def namespaces_=(str: String)
+	def tag: JTextComponent
+	def dirty: Boolean
+	def dirty_=(dirt: Boolean)
+	def memento: ViewerMemento
 }
 
-class SimpleContext(val comp: JTextComponent, var viewer: ScalaViewer[_ <: ScalaViewer[_]], var word: String, val wStart: Int, val wEnd: Int, var myMatcher: ArgMatcher = null) {
+trait ViewerMemento {
+	def restore
+	def viewer: ScalaViewer[_]
+}
+
+class SimpleContext(val comp: JTextComponent, var viewer: ScalaViewer[_ <: ScalaViewer[_]], var word: String, val wStart: Int, val wEnd: Int, var myMatcher: ArgMatcher = null, txt: String = null) {
+	var surfReplace = true
+	def text(start: Int, len: Int): String = if (txt != null) txt.slice(start, start + len) else comp.getDocument.getText(start, len)
 	def matcher = {
 		if (myMatcher == null) {
 			val doc = comp.getDocument
@@ -73,6 +88,8 @@ class SimpleContext(val comp: JTextComponent, var viewer: ScalaViewer[_ <: Scala
 	}
 	def error(str: String) = viewer.errorFromProcess(str)
 	def find(name: String) = viewer.topViewer.find(name)
+	def namespaceList = viewer.namespaces.getOrElse("").split(" +")
+	def namespaces = namespaceList.map(Ober.namespaces.get(_)).flatMap(_.get.fullPath).reverse.removeDuplicates.reverse
 }
 
 object Ober {
@@ -81,25 +98,22 @@ object Ober {
 	var windows = List[AbstractOberWindow]()
 	var focus: ScalaViewer[_] = null
 	var idCounter = 0
-
-	val wordPlusRest = """^([-a-zA-Z0-9_<>|!.:$/]+) *([^ \n](?:[^\n"]|"(?:[^"]|\n|\\")*")*)?(?:\n(?:.|\n)*)?$""".r
-	val wordPattern = """[-a-zA-Z0-9_<>|!.:$/]+""" r
-	val namespacePattern = """([-a-zA-Z0-9_<>|!.:$/{}]*) *\[(([-a-zA-Z0-9_<>|!.:$/{}]+)?( +[-a-zA-Z0-9_<>|!.:$/{}]+)*)]""" r
-	val namePattern = """^[^:]*: *([-a-zA-Z0-9_<>|!.:$/{}]+)([^-a-zA-Z0-9_<>|!.:$/{}]|$)""" r
-	val defaultOberTagText = "[Ober] New Newcol Help Quit"
+	var interpError = ""
+	val wordPlusRest = """^([-a-zA-Z0-9_<>|!.:$/+]+) *([^ \n](?:[^\n"]|"(?:[^"]|\n|\\")*")*)?(?:\n(?:.|\n)*)?$""".r
+	val wordPattern = """[-a-zA-Z0-9_<>|!.:$/+]+""" r
+	val namespacePattern = """([-a-zA-Z0-9_<>|!.:$/{}+]*) *\[(([-a-zA-Z0-9_<>|!.:$/{}+]+)?( +[-a-zA-Z0-9_<>|!.:$/{}+]+)*)]""" r
+	val namePattern = """^[^:]*: *([-a-zA-Z0-9_<>|!.:$/{}+]+)([^-a-zA-Z0-9_<>|!.:$/{}+]|$)""" r
+	val defaultOberTagText = "[Ober] New Newcol Help Back Forward Quit"
 	val defaultTrackTagText = "[Track] New Delcol"
-	val defaultViewerTagText = "./New [File] Get GetHTML Put Del"
-	def defaultErrorViewerTagText = "Err [Viewer] Del"
+	val defaultViewerTagText = "./New [File] Get GetHTML Put Del Clean"
+	def defaultErrorViewerTagText = "Err [Viewer] Del Clean"
 	val namespaces = MMap[String, Namespace]()
 	val redBorder = new LineBorder(Color.red)
 	val grayBorder = LineBorder.createGrayLineBorder
 	val blackBorder = LineBorder.createBlackLineBorder
-	val interp = new Interpreter(new Settings(str => interpError))
-	val interpResult = new Array[Any](1)
-	var interpError = ""
 	val classNs = new ClassNamespace("Class")
 	val systemNs = new SystemNamespace("System")
-	val oberNs = new ClosureNamespace("Ober",
+	val oberNs = new ClosureNamespace("Ober", noSurf,
 		"Quit" -> {_ => System.exit(0)},
 		"New" -> (_.viewer.createNewViewer),
 		"Newcol" -> (_.viewer.createNewTrack),
@@ -110,27 +124,33 @@ object Ober {
 		"Run" -> (Utils.run(_)),
 		"Append" -> (Utils.appendText(_)),
 		"Exec" -> (Utils.execCmd(_)),
-		"Namespaces" -> (Utils.setNamespaces(_))
+		"Namespaces" -> (Utils.setNamespaces(_)),
+		"Back" -> (Utils.back(_)),
+		"Forward" -> (Utils.forward(_)),
+		"Clean" -> (_.viewer.dirty_=(false))
 	)
-	val trackNs = new ClosureNamespace("Track",
+	val trackNs = new ClosureNamespace("Track", noSurf,
 		"Delcol" -> {ctx =>
 			val v = if (ctx.viewer.isTrack) ctx.viewer else ctx.viewer.parent
 			if (v.isTrack) v.delete},
 		"Width" -> (Utils.trackWidth(_)),
 		"TrackPosition" -> (Utils.trackPosition(_))
 	)
-	val viewerNs = new ClosureNamespace("Viewer",
+	val fileNs = new ClosureNamespace("File", Utils.surfFile,
 		"Del" -> (_.viewer.delete),
 		"Height" -> (Utils.viewerHeight(_)),
-		"ViewerPosition" -> (Utils.viewerPosition(_))
-	)
-	val fileNs = new ClosureNamespace("File",
+		"ViewerPosition" -> (Utils.viewerPosition(_)),
 		"Get" -> (_.viewer.get()),
 		"GetHTML" -> (_.viewer.getHtml()),
-		"Surf" -> (_.viewer.surf),
 		"Put" -> (_.viewer.put)
 	)
 
+	def noSurf(ctx: SimpleContext): Option[(SimpleContext, ScalaViewer[_]) => Any] = None
+	def onEDTFuture[T](block: => T) = {
+		val res = new Array[Future[T]](1)
+		onEDTWait(res(0) = Futures.future(block))
+		res(0)
+	}
 	def toFile(obj: Any): File = {
 		obj match {
 			case s: String => new File(s)
@@ -138,10 +158,23 @@ object Ober {
 			case other => new File(other.toString)
 		}
 	}
-	def run(namespaces: Array[String], ctx: SimpleContext) {
-		Utils.handlerFor(namespaces, ctx.word, ctx)
+	def run(ctx: SimpleContext) = Utils.handlerFor(ctx.word, ctx)
+	def surf(ctx: SimpleContext) = {
+		var found = false
+		var seen = MSet[Namespace]()
+
+		ctx.namespaces.view.map(_.surf(ctx)).find(opt => opt.isDefined).map {block =>
+			val viewer = viewerForSurf(ctx.word, ctx)
+			(block get)(ctx, viewer)
+			viewer.focus
+		}.isDefined
 	}
-	def surf(namespaces: Array[String], ctx: SimpleContext) = Utils.surf(namespaces, ctx)
+	def viewerForSurf(name: String, ctx: SimpleContext) = {
+		if (ctx.surfReplace) {
+			ctx.viewer.name = name
+			ctx.viewer
+		} else Utils.findOrCreateViewer(name, ctx.viewer, true)
+	}
 	def nextId = {
 		idCounter += 1
 		"ID: " + idCounter
@@ -166,19 +199,38 @@ object Ober {
 		} else p
 	}
 	def normalizePath(path: String): String = {
-		var u = new URI(path)
-
-		if (u.getPath == "") {
-			u = new URI(path + "/")
+		try {
+			var u = new URI(path)
+	
+			if (u.getPath == "") {
+				u = new URI(path + "/")
+			}
+			if (u.getScheme == "file") u.toString.drop("file:".length)
+			else u.toString
+		} catch {
+			case _ => path
 		}
-		if (u.getScheme == "file") u.toString.drop("file:".length)
-		else u.toString
 	}
-	def contextForName(name: String) = {
+	def contextForName(name: String, child: String = null) = {
 		Ober.tryUri(resolve(name)) match {
 		case Some(uri) if (uri.getScheme == null || uri.getScheme == "file") => new java.io.File(uri.getPath)
 		case Some(uri) => uri.toURL
 		case None => null
+		}
+	}
+	def path(parent: String, child: String): (Boolean, String) = {
+		contextForName(child) match {
+			case u: URL => (true, condensePath(new URL(u, child).toExternalForm))
+			case ch: File => contextForName(parent) match {
+				case u: URL => (true, condensePath(new URL(u, child).toExternalForm))
+				case f: File =>
+					(if (ch.isAbsolute) ch else new File(f, child)) match {
+						case f if (f.isDirectory) => (f.exists, condensePath(f.getAbsolutePath + File.separator))
+						case f => (f.exists, condensePath(f.getAbsolutePath))
+					}
+				case _ => (ch.exists, ch.getAbsolutePath)
+			}
+			case _ => (false, null)
 		}
 	}
 	def urlForContext(context: Any) = context match {
@@ -188,6 +240,24 @@ object Ober {
 		case _ => null
 	}
 	def resolve(str: String) = ArgMatcher(str).toSequence.mkString("")
+	def gainFocus(v: ScalaViewer[_]) {
+		if (focus != v) {
+			if (focus != null) focus.lostFocus
+			focus = v
+			focus gainedFocus
+		}
+	}
+	def eval(str: String, viewer: ScalaViewer[_]) = exec("result(0) = {"+str+";}", viewer, Utils.interp)
+	def exec(str: String, viewer: ScalaViewer[_], i: Interpreter) = {
+		interpError = ""
+		i.beQuietDuring(i.interpret(str)) match {
+			case IR.Success => Some(Utils.interpResult(0))
+			case IR.Error | IR.Incomplete =>
+				if (viewer != null) viewer.errorFromProcess(Ober.interpError)
+				else println(interpError)
+				None
+		}
+	}
 
 	Utils.init
 }
@@ -196,32 +266,71 @@ object ViewerImports {
 	def HOME = System.getProperty("user.home")
 }
 object Utils {
+	val history = ArrayBuffer[ViewerMemento]()
+	var historyPos = 0
+	val interpF = Ober.onEDTFuture {
+		val i = new Interpreter(new Settings(str => Ober.interpError = str));
+		i.beQuietDuring(i.bind("result", "Array[Any]", interpResult))
+		Ober.exec("import tc.ober.ViewerImports._", null, i)
+		myInterp = i
+	}
+	val interpResult = new Array[Any](1)
+	var myInterp: Interpreter = null
+	def interp = {
+		if (myInterp == null) {
+			println("Waiting for interpreter to initialize")
+			interpF()
+			println("Interpreter initialized")
+		}
+		myInterp
+	}
 	def init {
-		Ober.interp.beQuietDuring(Ober.interp.bind("result", "Array[Any]", Ober.interpResult))
-		Utils.exec("import tc.ober.ViewerImports._", null)
 		Ober.oberNs.parents = List(Ober.classNs, Ober.systemNs)
 		Ober.trackNs.parents = List(Ober.oberNs)
-		Ober.viewerNs.parents = List(Ober.trackNs)
-		Ober.fileNs.parents = List(Ober.viewerNs)
+		Ober.fileNs.parents = List(Ober.trackNs)
 		add(
 			Ober.oberNs,
 			Ober.trackNs,
-			Ober.viewerNs,
 			Ober.systemNs,
 			Ober.fileNs,
 			Ober.classNs
 		)
 		Ober.oberNs.handleSurf = true
 	}
+	def pushHistory(viewer: ScalaViewer[_]): Unit = pushHistory(viewer.memento)
+	def pushHistory(memento: ViewerMemento) {
+		println("push")
+		if (historyPos < history.size) history.reduceToSize(historyPos)
+		history + memento
+		historyPos += 1
+		println("history size: "+history.size+", pos: "+historyPos)
+	}
+	def back(ctx: SimpleContext) {
+		if (historyPos > 0) {
+			val backMem = history(historyPos - 1)
+
+			if (historyPos >= history.size - 1) {
+				val mem = backMem.viewer.memento
+
+				if (mem != history.last) {
+					pushHistory(mem)
+					historyPos -= 1
+				}
+			}
+			historyPos -= 1
+			history(historyPos).restore
+			println("history size: "+history.size+", pos: "+historyPos)
+		}
+	}
+	def forward(ctx: SimpleContext) {
+		if (historyPos < history.size - 1) {
+			historyPos += 1
+			history(historyPos).restore
+			println("history size: "+history.size+", pos: "+historyPos)
+		}
+	}
 	def error(str: String) {
 		println("Error: "+str)
-	}
-	def gainFocus(v: ScalaViewer[_]) {
-		if (Ober.focus != v) {
-			if (Ober.focus != null) Ober.focus.lostFocus
-			Ober.focus = v
-			Ober.focus gainedFocus
-		}
 	}
 	def add(spaces: Namespace*) {
 		for (ns <- spaces) Ober.namespaces(ns.name) = ns
@@ -290,20 +399,20 @@ object Utils {
 			ctx.viewer.append(ctx.matcher.next)
 		}
 	}
-	def load(ctx: SimpleContext) = ctx.viewer.load
+	def load(ctx: SimpleContext) = ctx.viewer.load()
 	def help(ctxViewer: ScalaViewer[_]) {
 		val helpDoc = Ober.condensePath(classOf[OberWindow].getResource("help.html").toExternalForm)
 
-		findOrCreateViewer(helpDoc, ctxViewer).getHtml()
+		findOrCreateViewer(helpDoc, ctxViewer, false).getHtml()
 	}
-	def findOrCreateViewer(name: String, ctxViewer: ScalaViewer[_]) = {
+	def findOrCreateViewer(name: String, ctxViewer: ScalaViewer[_], recordHistory: Boolean) = {
 		var viewer = ctxViewer.topViewer.find(name)
 
 		if (viewer == null) {
 			viewer = ctxViewer.createNewViewer
 			viewer.name = name
-		}
-		viewer
+			viewer
+		} else viewer
 	}
 	def run(ctx: SimpleContext) {
 		if (ctx.matcher.hasNext) {
@@ -324,12 +433,12 @@ object Utils {
 	/**
 	 * execute the command that exists in the first available namespace in the list
 	 */
-	def handlerFor(namespaceSeq: Sequence[String], cmd: String, ctx: SimpleContext): Any = {
+	def handlerFor(cmd: String, ctx: SimpleContext): Any = {
 		var found = false
 		var seen = MSet[Namespace]()
 
 //		println("Namespaces: "+namespaceSeq.map(namespaces.get(_)).flatMap(x=>x).flatMap(_.fullPath))
-		for (space <- namespaceSeq.map(Ober.namespaces.get(_)).flatMap(x=>x).flatMap(_.fullPath)) {
+		for (space <- ctx.namespaceList.map(Ober.namespaces.get(_)).flatMap(x=>x).flatMap(_.fullPath)) {
 			if (!found && !seen(space)) {
 				seen.add(space)
 				space.handlerFor(ctx).foreach {handler =>
@@ -342,35 +451,13 @@ object Utils {
 			println("No command '"+cmd+"' found")
 		}
 	}
-	def surf(namespaceSeq: Sequence[String], ctx: SimpleContext): Boolean = {
-		var found = false
-		var seen = MSet[Namespace]()
-
-//		println("Namespaces: "+namespaceSeq.map(namespaces.get(_)).flatMap(x=>x).flatMap(_.fullPath))
-		for (space <- namespaceSeq.map(Ober.namespaces.get(_)).flatMap(x=>x).flatMap(_.fullPath)) {
-			if (!found && !seen(space)) {
-				seen.add(space)
-				found = space.surf(ctx)
-			}
-		}
-		if (!found) {
-			println("No handler could surfe to '"+ctx.word+"'.")
-		}
-		found
+	def execCmd(ctx: SimpleContext) = Ober.exec(ctx.matcher.toSequence.mkString(" "), ctx.viewer, interp)
+	def surfFile(ctx: SimpleContext) = {
+		val (exists, name) = Ober.path(ctx.viewer.name, ctx.word)
+		
+		if (exists) Some((ctx: SimpleContext, viewer: ScalaViewer[_]) => viewer.surfTo(name))
+		else None
 	}
-	def execCmd(ctx: SimpleContext) = exec(ctx.matcher.toSequence.mkString(" "), ctx.viewer)
-	def eval(str: String, viewer: ScalaViewer[_]) = exec("result(0) = {"+str+";}", viewer)
-	def exec(str: String, viewer: ScalaViewer[_]) = {
-		Ober.interpError = ""
-		Ober.interp.beQuietDuring(Ober.interp.interpret(str)) match {
-			case IR.Success => Some(Ober.interpResult(0))
-			case IR.Error | IR.Incomplete =>
-				if (viewer != null) viewer.errorFromProcess(Ober.interpError)
-				else println(Ober.interpError)
-				None
-		}
-	}
-
 }
 trait Namespace {
 	var parents: List[Namespace] = Nil
@@ -382,26 +469,26 @@ trait Namespace {
 	override def toString() = {
 		"Namespace "+name
 	}
-	def surf(ctx: SimpleContext) = false
+//	def surf(ctx: SimpleContext) = false
+	val surf: (SimpleContext) => Option[(SimpleContext, ScalaViewer[_]) => Any] = _ => None
 }
-class ClosureNamespace(var name: String, entries: (String, Ober.Cmd)*) extends Namespace {
+class ClosureNamespace(var name: String, override val surf: (SimpleContext) => Option[(SimpleContext, ScalaViewer[_]) => Any], entries: (String, Ober.Cmd)*) extends Namespace {
 	val closures = MMap[String, Ober.Cmd](entries: _*)
 	var handleSurf = false
 
 	def handlerFor(ctx: SimpleContext) = closures.get(ctx.word)
-	override def surf(ctx: SimpleContext) = {
-		if (handleSurf) {
-			val name = Ober.condensePath(ctx.word)
-			var viewer = ctx.find(name)
-
-			if (viewer == null) {
-				viewer = ctx.viewer.createNewViewer
-				viewer.surfTo(Ober.condensePath(name))
-			}
-			viewer.focus
-			true
-		} else false
-	}
+//	override def surf(ctx: SimpleContext) = {
+//		if (handleSurf) {
+//			val (exists, name) = Ober.path(ctx.viewer.name, ctx.word)
+//			
+//			if (exists) {
+//				val viewer = viewerForSurf(name, ctx)
+//				viewer.surfTo(name)
+//				viewer.focus
+//				true
+//			} else false
+//		} else false
+//	}
 }
 class ClassNamespace(var name: String) extends Namespace {
 	def handlerFor(ctx: SimpleContext): Option[Ober.Cmd] = {
@@ -437,7 +524,8 @@ class SystemNamespace(var name: String) extends Namespace {
 			try {
 				val seq = ctx.matcher.toSequence
 				val end = if (seq.isEmpty) ctx.wEnd else ctx.matcher.end + ctx.wEnd
-				val process = Runtime.getRuntime.exec(ctx.comp.getDocument.getText(ctx.wStart, end - ctx.wStart))
+//				println("start: "+ctx.wStart+", len: "+(end - ctx.wStart))
+				val process = Runtime.getRuntime.exec(ctx.text(ctx.wStart, end - ctx.wStart))
 				val output = process.getInputStream
 				val error = process.getErrorStream
 
@@ -450,13 +538,10 @@ class SystemNamespace(var name: String) extends Namespace {
 				}.start
 				new Thread("processErorr") {
 					override def run {
-						Source.fromInputStream(error).getLines foreach {line =>
-							ctx.viewer.errorFromProcess(line.dropRight(1))
-						}
+						Source.fromInputStream(error).getLines foreach {line =>	ctx.viewer.errorFromProcess(line.dropRight(1))}
 					}
 				}.start
 				process
-			} catch {case e: IOException => ctx.viewer.errorFromProcess("Unknown command: " + ctx.word + "\n")}
-		})
+			} catch {case e: IOException =>if (!Ober.surf(ctx)) {ctx.viewer.errorFromProcess("Unknown command: " + ctx.word + "\n")}}})
 	}
 }
