@@ -9,14 +9,11 @@ an environment for Scala based on Oberon</h1>
 <span style="font-weight: bold;">Mouse button 1</span>
 functions as normal<br>
 <br>
-<span style="font-weight: bold;">Ctrl-Mouse button 1</span>
-"surfs" in a context-sensitive way (based on the namespaces of the
-viewer). &nbsp;Default is to open a&nbsp;file or URL<br>
+<span style="font-weight: bold;">Mouse button 2 or Ctrl-Mouse button 1 </span>executes text as a command as below, but if it surfs, it uses a new viewer
+    <br>
 <br>
-<span style="font-weight: bold;">Mouse button 3</span>
-executes text as a command in a context-sensitive way (based on the
-namespaces of the viewer).<br>
-<br>
+<span style="font-weight: bold;">Mouse button 3</span> as below<br>
+
 <h2>Overview</h2>
 Ober windows are composed of <span style="font-weight: bold; font-style: italic; text-decoration: underline;">tags</span>,
 <span style="font-weight: bold; font-style: italic; text-decoration: underline;">viewers</span>,
@@ -36,7 +33,9 @@ you execute a command or surf, Ober uses the namespaces in brackets to
 resolve the action. &nbsp;Viewers use the tag directly above them
 for
 command resolution. &nbsp;Each namespace can inherit from a list of
-namespaces. &nbsp;Here's how Ober looks up a command when you execute it in a File viewer:<br><ol><li>Check the File, Viewer, Track, and Ober namespaces for your command</li><li>otherwise, see if it's Import or the name of a class (the Class namespace does this)</li><li>otherwise, try to execute it as a system (shell) command (the System namespace does this)</li><li>otherwise, try to surf to it (the System namespace does this)</li></ol>
+namespaces. &nbsp;Here's how Ober looks up a command when you execute it in a File viewer:<br><ol><li>Check the File, Viewer, Track, and Ober namespaces for your command</li><li>otherwise, see if it's Import or the name of a class (the Class namespace does this)</li><li>otherwise, try to execute it as a system (shell) command (the System namespace does this)</li><li>
+        otherwise, try to surf to it (using the first namespace which can successfully surf). If the current viewer is dirty, it opens a new viewer
+      </li></ol>
 <br>
 Some commands take arguments. &nbsp;These can be <span style="font-weight: bold; font-style: italic; text-decoration: underline;">words</span>,
 <span style="font-weight: bold; font-style: italic; text-decoration: underline;">quoted
