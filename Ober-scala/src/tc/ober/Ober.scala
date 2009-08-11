@@ -106,7 +106,7 @@ object Ober {
 	val defaultOberTagText = "[Ober] New Newcol Help Back Forward Quit"
 	val defaultTrackTagText = "[Track] New Delcol"
 	val defaultViewerTagText = "./New [File] Get GetHTML Put Del Clean"
-	def defaultErrorViewerTagText = "Err [Viewer] Del Clean"
+	def defaultErrorViewerTagText = "Err [File] Del Clean"
 	val namespaces = MMap[String, Namespace]()
 	val redBorder = new LineBorder(Color.red)
 	val grayBorder = LineBorder.createGrayLineBorder
