@@ -1,19 +1,27 @@
 <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
-<html><head><title>Ober Help</title></head>
+<html><head><title>Ober Help</title>
+
+<style>
+.gray {background: #C0C0C0}
+</style>
+</head>
 <body>
 <h1><span style="font-weight: bold;">Ober</span>,
 an environment for Scala based on Oberon</h1>
-<br><img style="width: 397px; height: 423px;" alt="screenshot" src="ober-scala.jpg"><br><br>
+Current binary (run with java -jar): <a href="http://zot.github.com/Ober-scala/ober.jar">http://zot.github.com/Ober-scala/ober.jar</a><br>Current source: <a href="http://github.com/zot/Ober-scala/tree/master">http://github.com/zot/Ober-scala/tree/master</a><br><br>
+<img style="width: 397px; height: 423px;" alt="screenshot" src="ober-scala.jpg"><br>
+<br>
 <h2>Basic Operation</h2>
 <br>
 <span style="font-weight: bold;">Mouse button 1</span>
 functions as normal<br>
 <br>
-<span style="font-weight: bold;">Mouse button 2 or Ctrl-Mouse button 1 </span>executes text as a command as below, but if it surfs, it uses a new viewer
-    <br>
+<span style="font-weight: bold;">Mouse button 2 or
+Ctrl-Mouse button 1 </span>executes text as a command as below,
+but if it surfs, it uses a new viewer <br>
 <br>
-<span style="font-weight: bold;">Mouse button 3</span> as below<br>
-
+<span style="font-weight: bold;">Mouse button 3</span>
+as below<br>
 <h2>Overview</h2>
 Ober windows are composed of <span style="font-weight: bold; font-style: italic; text-decoration: underline;">tags</span>,
 <span style="font-weight: bold; font-style: italic; text-decoration: underline;">viewers</span>,
@@ -33,9 +41,19 @@ you execute a command or surf, Ober uses the namespaces in brackets to
 resolve the action. &nbsp;Viewers use the tag directly above them
 for
 command resolution. &nbsp;Each namespace can inherit from a list of
-namespaces. &nbsp;Here's how Ober looks up a command when you execute it in a File viewer:<br><ol><li>Check the File, Viewer, Track, and Ober namespaces for your command</li><li>otherwise, see if it's Import or the name of a class (the Class namespace does this)</li><li>otherwise, try to execute it as a system (shell) command (the System namespace does this)</li><li>
-        otherwise, try to surf to it (using the first namespace which can successfully surf). If the current viewer is dirty, it opens a new viewer
-      </li></ol>
+namespaces. &nbsp;Here's how Ober looks up a command when you
+execute it in a File viewer:<br>
+<ol>
+<li>Check the File, Viewer, Track, and Ober namespaces for your
+command</li>
+<li>otherwise, see if it's Import or the name of a class (the
+Class namespace does this)</li>
+<li>otherwise, try to execute it as a system (shell) command
+(the System namespace does this)</li>
+<li> otherwise, try to surf to it (using the first namespace
+which can successfully surf). If the current viewer is dirty, it opens
+a new viewer </li>
+</ol>
 <br>
 Some commands take arguments. &nbsp;These can be <span style="font-weight: bold; font-style: italic; text-decoration: underline;">words</span>,
 <span style="font-weight: bold; font-style: italic; text-decoration: underline;">quoted
@@ -55,7 +73,7 @@ command.<br>
 <td width="288">Quit</td>
 <td>Quit Ober</td>
 </tr>
-<tr style="background: rgb(192, 192, 192) none repeat scroll 0% 50%; -moz-background-clip: initial; -moz-background-origin: initial; -moz-background-inline-policy: initial;">
+<tr class="gray">
 <td width="288">New
 </td>
 <td>Create new viewer. &nbsp;It will appear in the
@@ -66,7 +84,7 @@ widest track, cutting the tallest view in half</td>
 <td>Create a new track. &nbsp;It will cut the widest
 track in half</td>
 </tr>
-<tr style="background: rgb(192, 192, 192) none repeat scroll 0% 50%; -moz-background-clip: initial; -moz-background-origin: initial; -moz-background-inline-policy: initial;">
+<tr class="gray">
 <td width="288">Load</td>
 <td>Load commands, line-by-line from a file indicated by
 viewer name as if you clicked each one in the current context</td>
@@ -75,7 +93,7 @@ viewer name as if you clicked each one in the current context</td>
 <td width="288">Rename&nbsp;newname</td>
 <td>Renames current viewer to newname</td>
 </tr>
-<tr style="background: rgb(192, 192, 192) none repeat scroll 0% 50%; -moz-background-clip: initial; -moz-background-origin: initial; -moz-background-inline-policy: initial;">
+<tr class="gray">
 <td width="288">Echo (args to end of line)</td>
 <td>echo
 arguments in the Err viewer</td>
@@ -84,7 +102,7 @@ arguments in the Err viewer</td>
 <td width="288">Help</td>
 <td>Show this document</td>
 </tr>
-<tr style="background: rgb(192, 192, 192) none repeat scroll 0% 50%; -moz-background-clip: initial; -moz-background-origin: initial; -moz-background-inline-policy: initial;">
+<tr class="gray">
 <td width="288">Run viewer command</td>
 <td>Execute command in the context of the named viewer</td>
 </tr>
@@ -92,11 +110,15 @@ arguments in the Err viewer</td>
 <td width="288">Append text</td>
 <td>Add text to a viewer's main view</td>
 </tr>
-<tr style="background: rgb(192, 192, 192) none repeat scroll 0% 50%; -moz-background-clip: initial; -moz-background-origin: initial; -moz-background-inline-policy: initial;">
+<tr class="gray">
 <td>Exec (args to end of line)</td>
 <td>Concatenate arguments and execute as Scala code</td>
 </tr>
-<tr><td>Namespaces (args to end of line)</td><td>Set the namespaces of the current viewer</td></tr></tbody>
+<tr>
+<td>Namespaces (args to end of line)</td>
+<td>Set the namespaces of the current viewer</td>
+</tr>
+</tbody>
 </table>
 <br>
 <h3>Track (parents: Ober)</h3>
@@ -106,7 +128,7 @@ arguments in the Err viewer</td>
 <td width="288">Delcol</td>
 <td>Remove the current column</td>
 </tr>
-<tr style="background: rgb(192, 192, 192) none repeat scroll 0% 50%; -moz-background-clip: initial; -moz-background-origin: initial; -moz-background-inline-policy: initial;">
+<tr class="gray">
 <td width="288">Width width</td>
 <td>Set the width of a track</td>
 </tr>
@@ -124,7 +146,7 @@ arguments in the Err viewer</td>
 <td width="288">Del</td>
 <td>Delete the current viewer</td>
 </tr>
-<tr style="background: rgb(192, 192, 192) none repeat scroll 0% 50%; -moz-background-clip: initial; -moz-background-origin: initial; -moz-background-inline-policy: initial;">
+<tr class="gray">
 <td width="288">Height height</td>
 <td>Set the height of a viewer</td>
 </tr>
@@ -142,7 +164,7 @@ arguments in the Err viewer</td>
 <td width="288">Get</td>
 <td>Load the file indicated by the viewer name as text</td>
 </tr>
-<tr style="background: rgb(192, 192, 192) none repeat scroll 0% 50%; -moz-background-clip: initial; -moz-background-origin: initial; -moz-background-inline-policy: initial;">
+<tr class="gray">
 <td width="288">GetHTML</td>
 <td>Load the file indicated by the viewer name as HTML</td>
 </tr>
@@ -151,7 +173,7 @@ arguments in the Err viewer</td>
 <td>Load the file indicated by the viewer name as either
 text or html, depending on content type</td>
 </tr>
-<tr style="background: rgb(192, 192, 192) none repeat scroll 0% 50%; -moz-background-clip: initial; -moz-background-origin: initial; -moz-background-inline-policy: initial;">
+<tr class="gray">
 <td width="288">Put</td>
 <td>Store viewer contents to the file indicated by the
 viewer name</td>
@@ -166,7 +188,7 @@ viewer name</td>
 <td width="288">Import package</td>
 <td>Add package to the import path</td>
 </tr>
-<tr style="background: rgb(192, 192, 192) none repeat scroll 0% 50%; -moz-background-clip: initial; -moz-background-origin: initial; -moz-background-inline-policy: initial;">
+<tr class="gray">
 <td width="288">classname (args&nbsp;to end of
 line)</td>
 <td>Run the main method on a class with the arguments</td>
@@ -184,11 +206,26 @@ line)<br>
 <td>Run the system command</td>
 </tr>
 </tbody>
-</table><br><h3>Surf</h3>
+</table>
+<br>
+<h3>Surf</h3>
 <table style="text-align: left;" border="0" cellpadding="2" cellspacing="2">
 <tbody>
 <tr>
 <td width="288">file or url<br>
 </td>
-<td>Surf to the file or url</td></tr></tbody></table><br><h3>To Do</h3><ul><li>make HTML namespace with its own Get command and make surf choose namespace (File or HTML)</li><li>Starting commands with |, &lt;, and &gt;, like in Wily</li><li>Other goodies from Wily (window mgt, etc)</li><li>command to highlight regexp matches</li></ul>
+<td>Surf to the file or url</td>
+</tr>
+</tbody>
+</table>
+<br>
+<h3>To Do</h3>
+<ul>
+<li>make HTML namespace with its own Get command and make surf
+choose namespace (File or HTML)</li>
+<li>Starting commands with |, &lt;, and &gt;, like in
+Wily</li>
+<li>Other goodies from Wily (window mgt, etc)</li>
+<li>command to highlight regexp matches</li>
+</ul>
 </body></html>
