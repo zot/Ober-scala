@@ -531,14 +531,14 @@ class SystemNamespace(var name: String) extends Namespace {
 
 				new Thread("processInput") {
 					override def run {
-						Source.fromInputStream(output).getLines foreach {line =>
+						Source.fromInputStream(output).getLines() foreach {line =>
 							ctx.viewer.outputFromProcess(line.dropRight(1))
 						}
 					}
 				}.start
 				new Thread("processErorr") {
 					override def run {
-						Source.fromInputStream(error).getLines foreach {line =>	ctx.viewer.errorFromProcess(line.dropRight(1))}
+						Source.fromInputStream(error).getLines() foreach {line =>	ctx.viewer.errorFromProcess(line.dropRight(1))}
 					}
 				}.start
 				process

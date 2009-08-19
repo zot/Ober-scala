@@ -105,6 +105,7 @@ abstract class SimpleViewer[PANEL_TYPE <: Container, PARENT <: AnyViewer] extend
 
 		namespacePattern.findFirstMatchIn(txt) match {
 		case Some(m) =>	tag.setText(txt.take(m.start(2))+ns+txt.drop(m.end(2)))
+		case None=>
 		}
 	}
 	def bindEvents(comp: JTextComponent) {
@@ -197,8 +198,8 @@ abstract class SimpleViewer[PANEL_TYPE <: Container, PARENT <: AnyViewer] extend
 	def viewerHeight(h: Int) {}
 	def load(str: String = null) {
 		Ober.contextForName(if (str == null) name else str) match {
-		case f: java.io.File => eval(Source.fromFile(f).getLines.mkString(""))
-		case u: java.net.URL => eval(Source.fromURL(u).getLines.mkString(""))
+		case f: java.io.File => eval(Source.fromFile(f).getLines().mkString(""))
+		case u: java.net.URL => eval(Source.fromURL(u).getLines().mkString(""))
 		case _ => errorFromProcess("Couldn't resolve name: "+name)
 		}
 	}

@@ -20,24 +20,24 @@ class OberWindow {
 	val frame = new JFrame()
 	val ob = new OberViewer(frame)
 	val tr = new TrackViewer
-	val doc = new DocumentViewer
 
 	tr.parent = ob
-	doc.parent = tr
 	frame.setSize(800, 600)
-	frame.addWindowListener(new ScalaWindowAdapter(doc, System.exit(0)))
+	frame.addWindowListener(new ScalaWindowAdapter(System.exit(0)))
 	frame setVisible true
 	onEDT {
 		val rc = new java.io.File(Ober.toFile(System.getProperty("user.home")), ".oberrc")
 		if (rc.exists) {
+			val doc = new DocumentViewer
+			doc.parent = tr
 			doc.name = "{HOME}"+java.io.File.separator+".oberrc"
 			doc.load(rc.getAbsolutePath)
 		} else {
-			Utils.help(doc)
+			Utils.help(tr)
 		}
 	}
 }
-class ScalaWindowAdapter(doc: DocumentViewer, closing: => Any = (null)) extends WindowAdapter {
+class ScalaWindowAdapter(closing: => Any = (null)) extends WindowAdapter {
 	var init = false;
 
 	override def windowClosing(e: WindowEvent) {
