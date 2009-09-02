@@ -11,4 +11,5 @@
 </listAttribute>
 <stringAttribute key="org.eclipse.jdt.launching.MAIN_TYPE" value="tc.ober.Main"/>
 <stringAttribute key="org.eclipse.jdt.launching.PROJECT_ATTR" value="Dataswarm-scala"/>
+<stringAttribute key="org.eclipse.jdt.launching.VM_ARGUMENTS" value="${REBEL}"/>
 </launchConfiguration>

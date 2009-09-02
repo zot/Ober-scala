@@ -27,6 +27,9 @@ import scala.actors.Future
 import scala.actors.Futures
 import scala.actors.Actor._
 import scala.swing.Swing._
+import scala.tools.nsc.io.AbstractFile
+import scala.tools.nsc.util.SourceFile
+import scala.tools.nsc.util.BatchSourceFile
 
 trait AbstractOberWindow
 
@@ -95,6 +98,7 @@ class SimpleContext(val comp: JTextComponent, var viewer: ScalaViewer[_ <: Scala
 object Ober {
 	type Cmd = SimpleContext => Any
 
+	var currentContext: SimpleContext = null
 	var windows = List[AbstractOberWindow]()
 	var focus: ScalaViewer[_] = null
 	var idCounter = 0
@@ -127,7 +131,8 @@ object Ober {
 		"Namespaces" -> (Utils.setNamespaces(_)),
 		"Back" -> (Utils.back(_)),
 		"Forward" -> (Utils.forward(_)),
-		"Clean" -> (_.viewer.dirty_=(false))
+		"Clean" -> (_.viewer.dirty_=(false)),
+		"LoadScript" -> (Utils.loadScript(_))
 	)
 	val trackNs = new ClosureNamespace("Track", noSurf,
 		"Delcol" -> {ctx =>
@@ -438,6 +443,7 @@ object Utils {
 		var seen = MSet[Namespace]()
 
 //		println("Namespaces: "+namespaceSeq.map(namespaces.get(_)).flatMap(x=>x).flatMap(_.fullPath))
+		Ober.currentContext = ctx
 		for (space <- ctx.namespaceList.map(Ober.namespaces.get(_)).flatMap(x=>x).flatMap(_.fullPath)) {
 			if (!found && !seen(space)) {
 				seen.add(space)
@@ -454,9 +460,20 @@ object Utils {
 	def execCmd(ctx: SimpleContext) = Ober.exec(ctx.matcher.toSequence.mkString(" "), ctx.viewer, interp)
 	def surfFile(ctx: SimpleContext) = {
 		val (exists, name) = Ober.path(ctx.viewer.name, ctx.word)
-		
+
 		if (exists) Some((ctx: SimpleContext, viewer: ScalaViewer[_]) => viewer.surfTo(name))
 		else None
+	}
+	def loadScript(ctx: SimpleContext) {
+		val script = if (ctx.matcher.hasNext) ctx.matcher.next else ""
+		val (exists, name) = Ober.path(ctx.viewer.name, script)
+
+		if (exists) {
+//			interp.compileSources(new BatchSourceFile(AbstractFile.getFile(name)))
+			Ober.exec(Source.fromPath(name).mkString, ctx.viewer, interp)
+		} else {
+			ctx.error(name + " does not exist")
+		}
 	}
 }
 trait Namespace {
@@ -471,6 +488,26 @@ trait Namespace {
 	}
 //	def surf(ctx: SimpleContext) = false
 	val surf: (SimpleContext) => Option[(SimpleContext, ScalaViewer[_]) => Any] = _ => None
+}
+trait OberCommand {
+	def runCommand(ctx: SimpleContext)
+	def doInstall(ctx: SimpleContext, name: String) {
+		name.lastIndexOf('.') match {
+			case -1 => ctx.error("")
+			case pos =>
+				val ns = Ober.namespaces(name.take(pos))
+
+				if (ns.isInstanceOf[ClosureNamespace]) {
+					ns.asInstanceOf[ClosureNamespace].closures(name.drop(pos + 1)) = {ctx: SimpleContext => runCommand(ctx)}
+				}
+		}
+	}
+	def install(ctx: SimpleContext) {
+		getClass().getAnnotations() foreach {ann => ann match {
+			case ann: CommandName => doInstall(ctx, ann.value)
+			case _ =>
+		}}
+	}
 }
 class ClosureNamespace(var name: String, override val surf: (SimpleContext) => Option[(SimpleContext, ScalaViewer[_]) => Any], entries: (String, Ober.Cmd)*) extends Namespace {
 	val closures = MMap[String, Ober.Cmd](entries: _*)
@@ -491,7 +528,9 @@ class ClosureNamespace(var name: String, override val surf: (SimpleContext) => O
 //	}
 }
 class ClassNamespace(var name: String) extends Namespace {
+	val initialized = MSet[Class[_]]() 
 	def handlerFor(ctx: SimpleContext): Option[Ober.Cmd] = {
+		var cl: java.lang.Class[_] = null
 		var method: java.lang.reflect.Method = null
 		var nm: String = null
 
@@ -500,18 +539,44 @@ class ClassNamespace(var name: String) extends Namespace {
 			for (i <- "" :: getImports(ctx).toList; if (method == null)) {
 				nm = i + ctx.word
 				try {
-					method = Class.forName(nm).getMethod("main", classOf[Array[String]]);
+					cl = safeClass(nm);
+					method = cl.getMethod("main", classOf[Array[String]]);
 				} catch {case _ =>}
 			}
-			if (method == null) {
+			if (cl == null) {
 				None
 			} else {
-				Some({ctx: SimpleContext => run(method, ctx.matcher.toSequence.toArray[String])})
+				Some({ctx: SimpleContext => run(cl, method, ctx.matcher.toSequence.toArray[String])})
 			}
 		}
 	}
-	def run(method: java.lang.reflect.Method, args: Array[String]) {
-		method.invoke(null, Array[Object](args): _*)
+	def safeClass(name: String) = {
+		try {
+			Class.forName(name)
+		} catch {
+			case _ => null
+		}
+	}
+	def run(cl: Class[_], method: java.lang.reflect.Method, args: Array[String]) {
+		if (!initialized(cl)) {
+			val companion = safeClass(cl.getName + "$")
+
+			initialized.add(cl)
+			if (companion != null) {
+				try {
+					val mod = companion.getDeclaredField("MODULE$").get(null)
+					
+					if (mod.isInstanceOf[OberCommand]) {
+						mod.asInstanceOf[OberCommand].install(Ober.currentContext)
+					}
+				} catch {
+				case ex => ex.printStackTrace()
+				}
+			}
+		}
+		if (method != null) {
+			method.invoke(null, Array[Object](args): _*)
+		}
 	}
 	def getImports(ctx: SimpleContext) = {
 		ctx.viewer.properties.getOrElseUpdate('imports, MSet[String]()).asInstanceOf[MSet[String]]
@@ -532,13 +597,13 @@ class SystemNamespace(var name: String) extends Namespace {
 				new Thread("processInput") {
 					override def run {
 						Source.fromInputStream(output).getLines() foreach {line =>
-							ctx.viewer.outputFromProcess(line.dropRight(1))
+							ctx.viewer.outputFromProcess(line)
 						}
 					}
 				}.start
 				new Thread("processErorr") {
 					override def run {
-						Source.fromInputStream(error).getLines() foreach {line =>	ctx.viewer.errorFromProcess(line.dropRight(1))}
+						Source.fromInputStream(error).getLines() foreach {line => println(line); ctx.viewer.errorFromProcess(line)}
 					}
 				}.start
 				process

@@ -10,7 +10,19 @@ License.txt for more information.
 package tc.ober
 
 object Test {
-	def main(args: Array[String]) {
-		println("test: " + args.toList)
+	var bubba: Int = 3;
+	var fred: String = "duh";
+
+	def test() {
+		println("duh")
 	}
+	def main(args: Array[String]) {
+		println("test: " + args.toList + " fred: " + new Fred(3))
+		System.gc
+		println("test: " + args.toList + " fred: " + new Fred(3))
+	}
+}
+case class Fred(f: Int) {
+	var t: Int = 10;
+	override def toString() = "Fred: " + t;
 }

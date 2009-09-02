@@ -32,7 +32,6 @@ import javax.swing.text.ParagraphView;
 import javax.swing.text.html.HTMLEditorKit;
 import javax.swing.JPanel;
 import javax.swing.JEditorPane;
-import javax.swing.SwingUtilities;
 import scala.io.Source;
 import Ober._
 import scala.swing.Swing._;
@@ -89,8 +88,8 @@ class DocumentViewer extends LeafViewer[JPanel] {
 	//Arcane, but needed because of the delayed effect of setting the document's contents
 	//there's probably a cleaner way to do this
 	def repositionViewer(pos: Point) {
-		SwingUtilities.invokeLater {
-			SwingUtilities.invokeLater {
+		onEDT {
+			onEDT {
 				scroll.getViewport.setViewPosition(pos)
 			}
 		}
