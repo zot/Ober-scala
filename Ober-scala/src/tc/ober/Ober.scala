@@ -271,6 +271,7 @@ object ViewerImports {
 	def HOME = System.getProperty("user.home")
 }
 object Utils {
+	val initialized = MSet[Class[_]]()
 	val history = ArrayBuffer[ViewerMemento]()
 	var historyPos = 0
 	val interpF = Ober.onEDTFuture {
@@ -493,16 +494,21 @@ trait OberCommand {
 	def runCommand(ctx: SimpleContext)
 
 	def install(ctx: SimpleContext) {
-		val name = commandName
+		val companion = Class.forName(getClass.getName.dropRight(1))
 
-		name.lastIndexOf('.') match {
+		if (!Utils.initialized(companion)) {
+			val name = commandName
+
+			Utils.initialized.add(companion)
+			name.lastIndexOf('.') match {
 			case -1 => ctx.error("")
 			case pos =>
 				val ns = Ober.namespaces(name.take(pos))
-
+			
 				if (ns.isInstanceOf[ClosureNamespace]) {
 					ns.asInstanceOf[ClosureNamespace].closures(name.drop(pos + 1)) = {ctx: SimpleContext => runCommand(ctx)}
 				}
+			}
 		}
 	}
 	//You can either use a @CommandName annotation or override this.  Salt to taste.
@@ -533,7 +539,6 @@ class ClosureNamespace(var name: String, override val surf: (SimpleContext) => O
 //	}
 }
 class ClassNamespace(var name: String) extends Namespace {
-	val initialized = MSet[Class[_]]() 
 	def handlerFor(ctx: SimpleContext): Option[Ober.Cmd] = {
 		var cl: java.lang.Class[_] = null
 		var method: java.lang.reflect.Method = null
@@ -563,10 +568,9 @@ class ClassNamespace(var name: String) extends Namespace {
 		}
 	}
 	def run(cl: Class[_], method: java.lang.reflect.Method, args: Array[String]) {
-		if (!initialized(cl)) {
+		if (!Utils.initialized(cl)) {
 			val companion = safeClass(cl.getName + "$")
 
-			initialized.add(cl)
 			if (companion != null) {
 				try {
 					val mod = companion.getDeclaredField("MODULE$").get(null)
@@ -578,6 +582,8 @@ class ClassNamespace(var name: String) extends Namespace {
 				case ex => ex.printStackTrace()
 				}
 			}
+			//do this down here in case the command didn't initialize
+			Utils.initialized.add(cl)
 		}
 		if (method != null) {
 			method.invoke(null, Array[Object](args): _*)
