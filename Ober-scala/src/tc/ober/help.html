@@ -3,8 +3,7 @@
 
 <style>
 .gray {background: #C0C0C0}
-</style>
-</head>
+</style></head>
 <body>
 <h1><span style="font-weight: bold;">Ober</span>,
 an environment for Scala based on Oberon</h1>
@@ -219,7 +218,12 @@ line)<br>
 </tbody>
 </table>
 <br>
-<h3>To Do</h3>
+<h2>Extending Ober</h2>The simplest way to add commands&nbsp;to Ober is
+to write an object that extends OberCommand. &nbsp;Here's an example
+command (included with Ober).<br><br><pre>package tc.ober<br><br>@CommandName("Ober.example")<br>object ExampleCommand extends OberCommand {<br>	def runCommand(ctx: SimpleContext) = println("hello")<br><br>	println("done")<br>}<br></pre>The
+@CommandName annotation specified where to put the new command and Ober
+calls the runCommand method when you click on "example" using the Ober
+namespace.<br><br>To load a command, make sure it's in your classpath and either click on the full&nbsp;class name or else put it in your .oberrc<br><br><h3>To Do</h3>
 <ul>
 <li>make HTML namespace with its own Get command and make surf
 choose namespace (File or HTML)</li>

@@ -491,7 +491,10 @@ trait Namespace {
 }
 trait OberCommand {
 	def runCommand(ctx: SimpleContext)
-	def doInstall(ctx: SimpleContext, name: String) {
+
+	def install(ctx: SimpleContext) {
+		val name = commandName
+
 		name.lastIndexOf('.') match {
 			case -1 => ctx.error("")
 			case pos =>
@@ -502,11 +505,13 @@ trait OberCommand {
 				}
 		}
 	}
-	def install(ctx: SimpleContext) {
+	//You can either use a @CommandName annotation or override this.  Salt to taste.
+	def commandName: String = {
 		getClass().getAnnotations() foreach {ann => ann match {
-			case ann: CommandName => doInstall(ctx, ann.value)
+			case ann: CommandName => return ann.value
 			case _ =>
 		}}
+		throw new Exception("No CommandName annotation")
 	}
 }
 class ClosureNamespace(var name: String, override val surf: (SimpleContext) => Option[(SimpleContext, ScalaViewer[_]) => Any], entries: (String, Ober.Cmd)*) extends Namespace {
