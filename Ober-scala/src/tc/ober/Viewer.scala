@@ -1,7 +1,5 @@
 /*
-(C) 2009 Bill Burdick
-
-ar.ober.OberDragWidget
+(C) 2009-2010 Bill Burdick
 
 This software is distributed under the terms of the
 Artistic License. Read the included file
@@ -55,6 +53,17 @@ abstract class SimpleViewer[PANEL_TYPE <: Container, PARENT <: AnyViewer] extend
 		for (m <- namespacePattern.findFirstMatchIn(txt)) {
 			tag.setText(txt.take(m.start(1)) + newName + txt.drop(m.end(1)))
 		}
+	}
+	def tagText = {
+		val txt = tag.getText
+		val patMatch = namespacePattern.findFirstMatchIn(txt)
+		txt.drop(patMatch.map(_.end(2) + 1).getOrElse(0))
+	}
+	def tagText_=(newText: String) = {
+		val txt = tag.getText
+		val patMatch = namespacePattern.findFirstMatchIn(txt)
+		val start = patMatch.map(_.end(2) + 1).getOrElse(0)
+		tag.setText(txt.take(start) + " " + newText)
 	}
 	def memento: ViewerMemento = null
 	def find(childName: String): ScalaViewer[_] = find(_.name == childName)
@@ -211,8 +220,10 @@ abstract class SimpleViewer[PANEL_TYPE <: Container, PARENT <: AnyViewer] extend
 
 			if (m.hasNext) {
 				val cmd = m.next
+				val ctx = new SimpleContext(defaultComponent, this, cmd, m.start + pos, m.end + pos, m, txt)
 
-				Ober.run(new SimpleContext(defaultComponent, this, cmd, m.start + pos, m.end + pos, m, txt))
+				ctx.userCmd = false
+				Ober.run(ctx)
 				pos = if (m.end == -1) txt.length else pos + m.end
 			} else {
 				pos += 1

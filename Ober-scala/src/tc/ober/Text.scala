@@ -1,7 +1,5 @@
 /*
-(C) 2009 Bill Burdick
-
-ar.ober.OberDragWidget
+(C) 2009-2010 Bill Burdick
 
 This software is distributed under the terms of the
 Artistic License. Read the included file
@@ -36,6 +34,7 @@ class ArgMatcher(txt: String, var stopAtEol: Boolean = true, var viewer: ScalaVi
 			str
 		}
 	}
+	def nextOpt = if (hasNext) Some(next) else None
 	def getNext: Option[(String, Int, Int, Boolean)] = {
 		if (!matcher.hasNext) None
 		else {
